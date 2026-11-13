@@ -18,6 +18,14 @@ Fora do claude.ai, os dados ficam salvos no navegador do aparelho em que você u
 
 As setas ao lado do nome do mês trocam o mês mostrado em todas as abas.
 
+## Entradas e quanto sobrou
+
+No fim do **Painel**, em **Entradas do mês**, anote o salário e outras rendas (**+ Entrada**). Com elas, o quadro **Sobrou no mês** mostra entradas menos gastos. Uma entrada pode ter **Repetir todo mês**.
+
+## Cartão de crédito
+
+No **Painel**, o quadro **Cartão de crédito** aparece quando existe gasto no crédito. Toque em **Definir** e diga o dia em que a fatura fecha. O app mostra a fatura aberta e a seguinte, somando as compras e parcelas de cada período.
+
 ## Contas da casa
 
 A aba **Contas** é para quem paga as contas da casa e divide com outras pessoas.
@@ -29,12 +37,16 @@ A aba **Contas** é para quem paga as contas da casa e divide com outras pessoas
 - **Quem te deve** soma o que cada pessoa ainda deve em todos os meses. O botão **Cobrar** monta a mensagem pronta para mandar.
 - Quando você liga **Paguei a conta**, a sua parte entra no Painel como gasto, na categoria **Casa**.
 - **Repetir todo mês** faz a conta aparecer sozinha quando o mês vira.
+- **Partes diferentes:** no formulário da conta, escreva o valor de quem paga outro tanto. O resto é dividido igualmente entre quem ficou em "igual" e você.
+- **Lembretes:** um aviso no topo do app mostra as contas que vencem hoje, amanhã ou estão atrasadas. No botão **Lembretes** dá para baixar um arquivo para a agenda do celular (avisa na véspera, mesmo com o app fechado) e ligar uma notificação diária.
 
 ## Gastos que se repetem
 
 - **Repetir todo mês:** para assinaturas e mensalidades. O app cria a cópia quando o mês vira. Para parar, desligue a chave na cópia mais recente.
 - **Parcelas:** ao criar um gasto, coloque o número de parcelas. O valor é dividido e cada parcela cai num mês.
 - **Duplicar:** na edição de um gasto, cria outro igual com a data de hoje.
+- **Repetir hoje:** na aba Gastos, os gastos que você mais repete viram botões. Um toque anota de novo com a data de hoje.
+- **Parcelas juntas:** ao editar uma parcela, dá para mudar a categoria e o pagamento de todas, ou excluir todas de uma vez.
 
 ## Conferir o extrato do banco
 
@@ -48,7 +60,9 @@ O app compara cada linha do extrato com o que já está anotado (isso se chama c
 - **Pix das contas da casa:** entrada com o valor que uma pessoa te deve. Liga o "me pagou" dela. Vem marcado só quando o nome dela aparece no extrato.
 - **Já importado antes**, **pagamento da fatura do cartão** e **dinheiro que só mudou de lugar** (aplicação, resgate, caixinha): vêm desmarcados.
 
-Nos gastos novos, o app sugere a categoria de um gasto parecido que você já anotou (mesma loja ou pessoa). Quanto mais você usa, menos categorias precisa escolher.
+- **Entradas de dinheiro:** marque o que é renda sua (salário, freela) para virar entrada do mês. Vem marcada a que parece com uma entrada já anotada.
+
+Nos gastos novos, o app sugere a categoria. Ele aprende com as suas escolhas: o nome da loja ou pessoa fica guardado com a categoria, e a lista aparece no fim da aba **Categorias**, em **Aprendido do extrato**, onde dá para corrigir ou esquecer.
 
 Só o que estiver marcado é aplicado, e **Cancelar** não muda nada. O que foi conferido ganha a marca "✓ extrato" na lista. O arquivo é lido no próprio aparelho e não é enviado para lugar nenhum.
 
