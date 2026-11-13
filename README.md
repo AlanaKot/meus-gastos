@@ -36,11 +36,19 @@ A aba **Contas** é para quem paga as contas da casa e divide com outras pessoas
 - **Parcelas:** ao criar um gasto, coloque o número de parcelas. O valor é dividido e cada parcela cai num mês.
 - **Duplicar:** na edição de um gasto, cria outro igual com a data de hoje.
 
-## Importar o extrato do banco
+## Conferir o extrato do banco
 
-No **Backup** (botão da caixa), **Importar extrato do banco (.ofx)** lê o arquivo que o banco oferece em "exportar extrato". OFX é um arquivo de texto com as movimentações.
+Na aba **Gastos**, o botão **Conferir extrato do banco** lê o arquivo OFX que o banco oferece em "exportar extrato". OFX é um arquivo de texto com as movimentações. O mesmo botão existe no **Backup**.
 
-O app mostra as saídas, você desmarca o que não é gasto seu, escolhe as categorias e importa. Importar o mesmo extrato duas vezes não duplica. O arquivo é lido no próprio aparelho e não é enviado para lugar nenhum.
+O app compara cada linha do extrato com o que já está anotado (isso se chama conciliar) e mostra o que vai fazer com cada uma:
+
+- **Gasto novo:** ainda não está no app. Escolha a categoria.
+- **Já anotado:** mesmo valor e até 3 dias de diferença de um gasto que você digitou. Só confere, sem criar outro.
+- **Conta da casa:** mesmo valor de uma conta ainda não paga. Liga o "Paguei a conta".
+- **Pix das contas da casa:** entrada com o valor que uma pessoa te deve. Liga o "me pagou" dela. Vem marcado só quando o nome dela aparece no extrato.
+- **Já importado antes** e **pagamento da fatura do cartão:** vêm desmarcados.
+
+Só o que estiver marcado é aplicado, e **Cancelar** não muda nada. O que foi conferido ganha a marca "✓ extrato" na lista. O arquivo é lido no próprio aparelho e não é enviado para lugar nenhum.
 
 PDF não é aceito: cada banco monta o PDF de um jeito, e a leitura erraria valores.
 

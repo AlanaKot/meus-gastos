@@ -727,7 +727,7 @@ function barraMes(novo, rotulo){
 const editavel = (col, id) => `data-edit="${col}" data-id="${esc(id)}" role="button" tabindex="0"`;
 const linhaGasto = (g, comData) => `<div class="row" ${editavel(g.daConta ? "contas" : "gastos", g.id)}><span class="dot" style="background:${corDe(g.categoriaId)}"></span>
   <div class="grow"><div class="t">${esc(g.descricao)}</div>
-    <div class="m">${esc(nomeDe(g.categoriaId))}${comData?" · "+fmtData(g.data):""}${g.pagamento?" · "+esc(rotPag(g.pagamento)):""}${g.daConta?" · sua parte da conta":""}${g.fixa?" · todo mês":""}</div></div>
+    <div class="m">${esc(nomeDe(g.categoriaId))}${comData?" · "+fmtData(g.data):""}${g.pagamento?" · "+esc(rotPag(g.pagamento)):""}${g.daConta?" · sua parte da conta":""}${g.fixa?" · todo mês":""}${g.ofx?" · ✓ extrato":""}</div></div>
   <span class="val">${brl(num(g.valor))}</span></div>`;
 const maisNovos = (a,b) => (b.data||"").localeCompare(a.data||"") || (b._t||0) - (a._t||0);
 
@@ -801,7 +801,8 @@ function vGastos(){
   return `${avisoBackup()}
   ${barraMes("gastos","Novo gasto")}
   <div class="bar filtro-linha"><div class="filter"><label class="sr" for="fCat">Categoria</label><select id="fCat"><option value="">Todas as categorias</option>${S.categorias.map(c=>`<option value="${esc(c.id)}" ${c.id===filtroCat?"selected":""}>${esc(c.nome)}</option>`).join("")}</select></div>
-    <span class="need">${plural(lista.length,"lançamento","lançamentos")} · <b class="num">${brl(soma(lista))}</b></span></div>
+    <span class="need">${plural(lista.length,"lançamento","lançamentos")} · <b class="num">${brl(soma(lista))}</b></span>
+    <button data-acao="ofx">Conferir extrato do banco</button></div>
   ${grupos.length?grupos.map(gr => `<div class="dia-h"><span>${fmtDia(gr.data)}</span><span class="num">${brl(soma(gr.itens))}</span></div>
     <div class="grupo"><div class="list">${gr.itens.map(g => linhaGasto(g)).join("")}</div></div>`).join("")
     :`<div class="grupo"><p class="empty">${filtroCat?"Nenhum gasto dessa categoria neste mês.":"Nenhum gasto neste mês. Toque no + para anotar o primeiro."}</p></div>`}`;
@@ -822,7 +823,7 @@ function vContas(){
     const chip = tudo ? ' <span class="chip ok">acertada</span>' : !c.paga && c.data < hoje ? ' <span class="chip bad">vencida</span>' : !c.paga && c.data === hoje ? ' <span class="chip warn">vence hoje</span>' : "";
     return `<div class="grupo conta"><div class="list">
       <div class="row" ${editavel("contas", c.id)}><div class="grow"><div class="t">${esc(c.descricao)}${chip}</div>
-        <div class="m">Vence ${fmtData(c.data)} · ${quem.length?brl(parteDe(c))+" para cada":"só sua"}${c.fixa?" · todo mês":""}</div></div><span class="val">${brl(num(c.valor))}</span></div>
+        <div class="m">Vence ${fmtData(c.data)} · ${quem.length?brl(parteDe(c))+" para cada":"só sua"}${c.fixa?" · todo mês":""}${c.ofx?" · ✓ extrato":""}</div></div><span class="val">${brl(num(c.valor))}</span></div>
       <label class="row chave"><span class="grow t">Paguei a conta</span><input type="checkbox" data-chk="paga" data-id="${esc(c.id)}" ${c.paga?"checked":""}></label>
       ${quem.map(x => `<label class="row chave"><span class="grow t">${esc(x.nome)} me pagou</span><input type="checkbox" data-chk="${x.i}" data-id="${esc(c.id)}" ${recebeu(c,x.i)?"checked":""}></label>`).join("")}
     </div></div>`; }).join("");
@@ -1059,8 +1060,10 @@ function lerOFX(txt){
   let saidas = itens.filter(t => t.valor < 0);
   if (cartao && !saidas.length) saidas = itens.filter(t => !/CREDIT|PAYMENT/.test(t.tipo));
   return Object.assign(saidas.map(t => ({ ...t, valor: Math.round(Math.abs(t.valor) * 100) / 100, chave: `${t.fitid}|${t.data}|${Math.abs(t.valor).toFixed(2)}`,
-    pagamento: cartao ? "credito" : /pix/i.test(t.descricao) ? "pix" : /boleto|t[ií]tulo|conta de/i.test(t.descricao) ? "boleto" : /saque/i.test(t.descricao) ? "dinheiro" : "debito" })), { ilegiveis, total: todos });
+    pagamento: cartao ? "credito" : /pix/i.test(t.descricao) ? "pix" : /boleto|t[ií]tulo|conta de/i.test(t.descricao) ? "boleto" : /saque/i.test(t.descricao) ? "dinheiro" : "debito" })), { ilegiveis, total: todos,
+    entradas: cartao ? [] : itens.filter(t => t.valor > 0).map(t => ({ ...t, valor: Math.round(t.valor * 100) / 100, chave: `${t.fitid}|${t.data}|${t.valor.toFixed(2)}` })) });
 }
+function pedirOFX(){ if (!S.categorias.length){ if ($("#dlg").open) $("#dlg").close(); toast("Crie uma categoria primeiro."); location.hash = "#categorias"; return; } escolherOFX(); }
 function escolherOFX(){
   const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".ofx,.qfx,application/x-ofx";
   inp.onchange = async () => {
@@ -1070,36 +1073,84 @@ function escolherOFX(){
       try { txt = new TextDecoder("utf-8", { fatal:true }).decode(buf); } catch(_){ txt = new TextDecoder("windows-1252").decode(buf); } } catch(_){}
     if (!/<OFX>/i.test(txt)){ toast("Este arquivo não é um extrato OFX."); return; }
     const itens = lerOFX(txt);
-    if (!itens.length){ toast(itens.ilegiveis ? "Não deu para ler os valores deste extrato. Exporte de novo no banco." : itens.total ? "Este extrato só tem entradas, nenhuma saída." : "Este extrato não tem movimentações."); return; }
+    if (!itens.length && !itens.entradas.length){ toast(itens.ilegiveis ? "Não deu para ler os valores deste extrato. Exporte de novo no banco." : "Este extrato não tem movimentações."); return; }
     revisarOFX(itens);
   };
   inp.click();
 }
+// Conciliar = conferir o extrato com o que já está no app, para nada entrar duas vezes. Cada linha do extrato cai num destes casos:
+//  - já veio de um extrato anterior: fica desmarcada;
+//  - é uma conta da casa ainda não paga (mesmo valor, perto do vencimento): marca "Paguei a conta";
+//  - é um gasto que a pessoa já anotou à mão (mesmo valor, até 3 dias de diferença): só confere, sem criar outro;
+//  - é novidade: vira um gasto novo, com a categoria escolhida.
+// Nas entradas, só interessa o Pix de quem divide as contas: se o valor bate com o que a pessoa deve, marca "me pagou".
 function revisarOFX(itens){
-  const ja = new Set(S.gastos.map(g => g.ofx).filter(Boolean)), limpo = t => String(t).toLowerCase().replace(/\d+/g, "").trim();
+  const ja = new Set([...S.gastos, ...S.contas].flatMap(x => [x.ofx, ...(x.ofxRec || [])]).filter(Boolean));
+  const dist = (a, b) => dataValida(a) && dataValida(b) ? Math.abs(parseD(a) - parseD(b)) / 86400000 : 999;
+  const igual = (a, b) => Math.abs((num(a) ?? 0) - b) < 0.005, limpo = t => String(t).toLowerCase().replace(/\d+/g, "").trim();
+  const dm = d => d.slice(8) + "/" + d.slice(5,7);
   // sugere a categoria do último gasto com a mesma descrição
   const sugerir = d => [...S.gastos].sort(maisNovos).find(g => limpo(g.descricao) === limpo(d) && cat(g.categoriaId))?.categoriaId || "";
-  const ilegiveis = itens.ilegiveis || 0;
-  itens.sort((a,b) => b.data.localeCompare(a.data));
-  const repetidos = itens.filter(t => ja.has(t.chave)).length;
-  // pagamento da fatura do cartão, no extrato da conta: vem desmarcado, porque as compras do cartão já entram uma a uma pela fatura
   const ehFatura = t => t.pagamento !== "credito" && /pagamento\s+(de|da)\s+fatura|fatura\s+(de|do)\s+cart[aã]o/i.test(t.descricao);
-  const faturas = itens.filter(t => ehFatura(t) && !ja.has(t.chave)).length;
+  const usados = new Set(), maisPerto = (lista, t) => lista.sort((a,b) => dist(a.data, t.data) - dist(b.data, t.data))[0];
+  itens.sort((a,b) => b.data.localeCompare(a.data));
+  itens.forEach(t => {
+    if (ja.has(t.chave)){ t.rep = true; return; }
+    const c = maisPerto(S.contas.filter(c => !c.paga && !usados.has(c.id) && igual(c.valor, t.valor) && dist(c.data, t.data) <= 10), t);
+    if (c){ usados.add(c.id); t.conta = c; return; }
+    const g = maisPerto(S.gastos.filter(g => !g.ofx && !usados.has(g.id) && igual(g.valor, t.valor) && dist(g.data, t.data) <= 3), t);
+    if (g){ usados.add(g.id); t.gasto = g; }
+  });
+  // entradas: valor igual à parte de uma conta em aberto de alguém (ou à soma de tudo que a pessoa deve)
+  const ps = pessoas(), entradas = [];
+  for (const e of (itens.entradas || []).filter(e => !ja.has(e.chave))){
+    const cand = ps.map((nome, i) => { const pend = devendo(i), uma = pend.find(c => igual(parteDe(c), e.valor));
+      const contas = uma ? [uma] : pend.length > 1 && igual(pend.reduce((a,c) => a + parteDe(c), 0), e.valor) ? pend : null;
+      const primeiro = semAcento(nome.split(" ")[0]);
+      return contas && { i, nome, contas, noNome: primeiro.length >= 3 && semAcento(e.descricao).includes(primeiro) }; }).filter(Boolean);
+    const m = cand.find(x => x.noNome) || (cand.length === 1 ? cand[0] : null);
+    if (m) entradas.push({ ...e, ...m });
+  }
+  if (!itens.length && !entradas.length){ toast("Este extrato só tem entradas, e nenhuma bate com o que te devem."); return; }
+  const cont = f => itens.filter(f).length, nNovos = cont(t => !t.rep && !t.conta && !t.gasto), nRep = cont(t => t.rep), nJa = cont(t => t.gasto), nContas = cont(t => t.conta);
+  const resumo = [nNovos && plural(nNovos, "gasto novo", "gastos novos"), nJa && plural(nJa, "já anotado", "já anotados"), nContas && plural(nContas, "conta da casa", "contas da casa"),
+    entradas.length && plural(entradas.length, "recebimento", "recebimentos"), nRep && plural(nRep, "já importado antes", "já importados antes")].filter(Boolean).join(" · ");
+  const linha = (t, i) => { const fat = !t.rep && !t.conta && !t.gasto && ehFatura(t);
+    const nota = t.rep ? '<span class="chip">já importado antes</span>'
+      : t.conta ? `<span class="chip ok">conta da casa</span> Marca <b>${esc(t.conta.descricao)}</b> como paga. Não cria gasto em dobro.`
+      : t.gasto ? `<span class="chip ok">já anotado</span> Confere com <b>${esc(t.gasto.descricao)}</b> (${dm(t.gasto.data)}). Não cria outro.`
+      : fat ? '<span class="chip warn">fatura do cartão</span> Desmarcado para as compras do cartão não contarem duas vezes.' : "";
+    return `<div class="imp"><label><input type="checkbox" name="i${i}" ${t.rep || fat ? "" : "checked"}><span class="grow"><span class="t">${esc(t.descricao)}</span><span class="m" style="display:block">${fmtData(t.data)} · ${rotPag(t.pagamento)}</span></span><span class="val">${brl(t.valor)}</span></label>
+      ${nota ? `<span class="m">${nota}</span>` : ""}
+      ${t.rep || t.conta || t.gasto ? "" : `<select name="c${i}" aria-label="Categoria de ${esc(t.descricao)}">${optCats().map(([a,b]) => `<option value="${esc(a)}" ${a===sugerir(t.descricao)?"selected":""}>${esc(b)}</option>`).join("")}</select>`}</div>`; };
   const frm = $("#frm");
-  frm.innerHTML = `<h2 tabindex="-1" autofocus>Importar extrato</h2>
-    <p class="need">${plural(itens.length,"saída encontrada","saídas encontradas")}. Entradas de dinheiro ficam de fora.${repetidos?` ${plural(repetidos,"já foi importada","já foram importadas")} antes e ${repetidos===1?"vem desmarcada":"vêm desmarcadas"}.`:""}${faturas?" O pagamento da fatura do cartão vem desmarcado, para as compras do cartão não contarem duas vezes.":""} Desmarque o que não é gasto seu e escolha as categorias.</p>
-    ${ilegiveis?`<p class="erro">${plural(ilegiveis,"movimentação não pôde ser lida e ficou","movimentações não puderam ser lidas e ficaram")} de fora. Confira no extrato do banco.</p>`:""}
-    <div>${itens.map((t,i) => `<div class="imp"><label><input type="checkbox" name="i${i}" ${ja.has(t.chave) || ehFatura(t)?"":"checked"}><span class="grow"><span class="t">${esc(t.descricao)}</span><span class="m" style="display:block">${fmtData(t.data)} · ${rotPag(t.pagamento)}</span></span><span class="val">${brl(t.valor)}</span></label>
-      <select name="c${i}" aria-label="Categoria de ${esc(t.descricao)}">${optCats().map(([a,b]) => `<option value="${esc(a)}" ${a===sugerir(t.descricao)?"selected":""}>${esc(b)}</option>`).join("")}</select></div>`).join("")}</div>
-    <div class="actions"><span></span><div class="r"><button type="button" id="cancel">Cancelar</button><button type="submit" class="primary">Importar marcados</button></div></div>`;
+  frm.innerHTML = `<h2 tabindex="-1" autofocus>Conferir extrato</h2>
+    <p class="need">${resumo}.</p>
+    <p class="need">O que estiver marcado é aplicado. Desmarque o que não é gasto seu e escolha a categoria dos gastos novos.</p>
+    ${itens.ilegiveis?`<p class="erro">${plural(itens.ilegiveis,"movimentação não pôde ser lida e ficou","movimentações não puderam ser lidas e ficaram")} de fora. Confira no extrato do banco.</p>`:""}
+    ${itens.length?`<div>${itens.map(linha).join("")}</div>`:""}
+    ${entradas.length?`<h3 style="font-size:1.0625rem">Pix das contas da casa</h3><div>${entradas.map((e,i) => `<div class="imp"><label><input type="checkbox" name="e${i}" ${e.noNome?"checked":""}><span class="grow"><span class="t">${esc(e.descricao)}</span><span class="m" style="display:block">${fmtData(e.data)}</span></span><span class="val">${brl(e.valor)}</span></label>
+      <span class="m"><span class="chip ok">recebido</span> Marca que <b>${esc(e.nome)}</b> pagou: ${e.contas.map(c => esc(c.descricao)).join(", ")}.${e.noNome?"":" O nome não aparece no extrato, então confira antes de marcar."}</span></div>`).join("")}</div>`:""}
+    <div class="actions"><span></span><div class="r"><button type="button" id="cancel">Cancelar</button><button type="submit" class="primary">Aplicar marcados</button></div></div>`;
   $("#cancel").onclick = () => $("#dlg").close();
   frm.onsubmit = async e => { e.preventDefault();
     const fd = new FormData(frm), bt = frm.querySelector("[type=submit]"); bt.disabled = true;
-    let n = 0, ultimo = "";
+    let novos = 0, conf = 0, ultimo = "";
+    // as mudanças em cada conta são juntadas antes de salvar, para uma não passar por cima da outra
+    const mud = new Map(), daConta = c => { if (!mud.has(c.id)){ const { id, _t, ...r } = S.contas.find(x => x.id === c.id) || c; mud.set(c.id, r); } return mud.get(c.id); };
     for (let i = 0; i < itens.length; i++){ if (!fd.has("i"+i)) continue; const t = itens[i];
-      if (await salvar("gastos", null, { descricao:t.descricao, valor:t.valor, data:t.data, categoriaId:fd.get("c"+i) || "", pagamento:t.pagamento, ofx:t.chave })){ n++; if (t.data > ultimo) ultimo = t.data; } }
+      if (t.rep) continue;
+      if (t.conta){ Object.assign(daConta(t.conta), { paga:true, pagaEm:t.data, ofx:t.chave }); continue; }
+      if (t.gasto){ const { id, _t, ...r } = t.gasto; if (await salvar("gastos", id, { ...r, ofx:t.chave })) conf++; continue; }
+      if (await salvar("gastos", null, { descricao:t.descricao, valor:t.valor, data:t.data, categoriaId:fd.get("c"+i) || "", pagamento:t.pagamento, ofx:t.chave })){ novos++; if (t.data > ultimo) ultimo = t.data; } }
+    entradas.forEach((en, i) => { if (!fd.has("e"+i)) return;
+      for (const c of en.contas){ const r = daConta(c), rec = ps.map((_,k) => !!(r.recebido || [])[k]); rec[en.i] = true; r.recebido = rec; r.ofxRec = [...(r.ofxRec || []), en.chave]; } });
+    if ([...mud.values()].some(r => r.paga)) garantirCasa();
+    for (const [id, r] of mud) await salvar("contas", id, r);
     if (ultimo) mes = ultimo.slice(0,7);
-    $("#dlg").close(); toast(plural(n,"gasto importado","gastos importados")); location.hash = "#gastos"; render(); };
+    $("#dlg").close();
+    toast([novos && plural(novos, "gasto novo", "gastos novos"), conf && plural(conf, "conferido", "conferidos"), mud.size && plural(mud.size, "conta atualizada", "contas atualizadas")].filter(Boolean).join(" · ") || "Nada foi aplicado");
+    if (novos) location.hash = "#gastos"; render(); };
   if (!$("#dlg").open) $("#dlg").showModal();
 }
 
@@ -1153,12 +1204,12 @@ function abrirBackup(){
       <input type="file" id="bkFile" class="sr" accept=".json,application/json">
       <label for="bkFile" class="arquivo">Escolher arquivo de backup…</label>
       <span class="need">Junta com o que já existe; itens com o mesmo código são substituídos.</span></div>
-    <div class="opcoes"><button type="button" id="bkOfx">Importar extrato do banco (.ofx)<span aria-hidden="true">›</span></button><button type="button" id="bkCsv">Exportar gastos em planilha (.csv)<span aria-hidden="true">›</span></button>${PODE_SINC ? '<button type="button" id="bkSinc">Sincronização com o Google Drive<span aria-hidden="true">›</span></button>' : ""}</div>
+    <div class="opcoes"><button type="button" id="bkOfx">Conferir extrato do banco (.ofx)<span aria-hidden="true">›</span></button><button type="button" id="bkCsv">Exportar gastos em planilha (.csv)<span aria-hidden="true">›</span></button>${PODE_SINC ? '<button type="button" id="bkSinc">Sincronização com o Google Drive<span aria-hidden="true">›</span></button>' : ""}</div>
     <div class="actions"><span></span><div class="r"><button type="button" id="cancel">Fechar</button></div></div>`;
   frm.onsubmit = e => e.preventDefault();
   $("#cancel").onclick = () => $("#dlg").close();
   $("#bkDown").onclick = baixarBackup;
-  $("#bkOfx").onclick = () => { if (!S.categorias.length){ $("#dlg").close(); toast("Crie uma categoria primeiro."); location.hash = "#categorias"; return; } escolherOFX(); };
+  $("#bkOfx").onclick = pedirOFX;
   $("#bkCsv").onclick = exportarCSV;
   if ($("#bkSinc")) $("#bkSinc").onclick = abrirSinc;
   $("#bkFile").onchange = e => {
@@ -1213,6 +1264,7 @@ $("#view").addEventListener("click", e => {
   else if (b.dataset.acao==="backup") abrirBackup();
   else if (b.dataset.acao==="pessoas") abrirPessoas();
   else if (b.dataset.acao==="cobrar") cobrar(+b.dataset.i);
+  else if (b.dataset.acao==="ofx") pedirOFX();
   else if (b.dataset.acao==="vercat"){ filtroCat = b.dataset.id; location.hash = "#gastos"; }
 });
 // no teclado, Enter ou espaço numa linha da lista faz o mesmo que o toque

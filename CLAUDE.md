@@ -31,7 +31,7 @@ O `index.html` já segue o padrão do `meu-semestre-site`. Ao mexer, manter:
 - **Fixos:** `gerarFixos()` cria a cópia do mês novo com código `série-mês`, para dois aparelhos sincronizados não duplicarem.
 - **Categorias:** nome, cor e limite mensal opcional, com barra de progresso (verde, amarelo, vermelho).
 - Apagar uma categoria apaga também os gastos dela, com confirmação. Apagar gasto ou conta oferece Desfazer.
-- **Busca** (lupa), **exportar CSV** e **importar extrato OFX** (só saídas, com revisão antes de salvar; `ofx` no gasto evita duplicar). PDF de extrato não é lido, de propósito.
+- **Busca** (lupa), **exportar CSV** e **conferir extrato OFX** (`revisarOFX`): concilia cada linha com gastos já anotados, contas da casa e Pix recebido de quem divide, com revisão antes de aplicar; `ofx` no item e `ofxRec` na conta evitam repetir. PDF de extrato não é lido, de propósito.
 - **Sincronização com o Google Drive:** opcional, copiada do semestre (arquivo `meus-gastos.json` na `appDataFolder`).
 - Dinheiro em pt-BR (R$ 1.250,00). Aceitar `12,50`, `12.50` e `1.250,00` na digitação.
 
