@@ -158,8 +158,7 @@ button.danger{color:var(--bad)}
 .w>span{display:block}
 .w .k{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:.82rem;font-weight:600;color:var(--accent)}
 .w .k .ir{margin-left:auto;color:var(--ink);font-weight:400;font-size:1.1rem;line-height:1}
-.w .gr{font-family:var(--f-num);font-size:1.5rem;font-weight:700;letter-spacing:-.02em;line-height:1.1;margin-top:auto;padding-top:10px;font-variant-numeric:tabular-nums;white-space:nowrap}
-.w .gr i{font-style:normal;font-family:var(--f-body);font-size:.84rem;font-weight:600;color:var(--muted);letter-spacing:-.01em;margin-left:5px}
+.w .gr{font-family:var(--f-num);font-size:1.5rem;font-weight:700;letter-spacing:-.02em;line-height:1.1;margin-top:auto;padding-top:10px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .w .gr.bad{color:var(--bad)}
 .w .p{margin-top:3px;font-size:.84rem;color:var(--muted);overflow-wrap:anywhere}
 .w.tinta{background:linear-gradient(160deg,var(--w-1),var(--w-2));color:var(--w-ink)}
@@ -267,6 +266,9 @@ input::-webkit-date-and-time-value{text-align:left;margin:0;min-height:1.4em}
   button.mais{width:44px;padding:0 0 3px;font-size:1.6rem;font-weight:400;line-height:1;flex:none}
   .wg{grid-template-columns:repeat(2,minmax(0,1fr))}
   .w.tinta{grid-column:1/-1}
+  .w .gr{font-size:clamp(1.1rem,5.4vw,1.5rem)}
+  .w.tinta .gr{font-size:clamp(1.6rem,8.6vw,2.25rem)}
+  .sec>.bar a{padding-block:11px}
   .filtro-linha .filter,.filtro-linha select{width:100%}
   dialog{margin:auto 0 0;width:100%;max-width:100%;border-radius:14px 14px 0 0;max-height:calc(100dvh - 20px - env(safe-area-inset-top,0px))}
   dialog form{padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}
@@ -483,7 +485,7 @@ function vPainel(){
   const widgets = `<div class="wg">
     <div class="w tinta"><span class="k">${ICO.carteira}Gasto no mês</span><span class="gr">${brl(total)}</span><span class="p">${comp}</span></div>
     <button class="w" data-acao="cfg"><span class="k">${ICO.alvo}Orçamento<span class="ir" aria-hidden="true">›</span></span>
-      ${orc ? `<span class="gr ${orc-total<0?"bad":""}">${brl0(Math.abs(orc-total))}<i>${orc-total>=0?"restam":"a mais"}</i></span>${meter(total,orc)}<span class="p">de ${brl0(orc)} no mês</span>`
+      ${orc ? `<span class="gr ${orc-total<0?"bad":""}">${brl0(Math.abs(orc-total))}</span>${meter(total,orc)}<span class="p">${orc-total>=0?"restam de":"acima dos"} ${brl0(orc)}</span>`
             : `<span class="gr">—</span><span class="p">Toque para definir quanto quer gastar no mês</span>`}</button>
     <div class="w"><span class="k">${ICO.media}Média por dia</span><span class="gr">${media!=null?brl(media):"—"}</span>
       <span class="p">${proj!=null?`Nesse ritmo, o mês fecha em ${brl0(proj)}`:plural(lista.length,"lançamento","lançamentos")}</span></div>
@@ -597,7 +599,7 @@ function abrirForm(col, id, preset={}){
   frm.onsubmit = async e => {
     e.preventDefault();
     const fd = new FormData(frm), out = {}, raw = {};
-    F.campos.flatMap(c => c.duo || [c]).forEach(c => { let v = fd.get(c.k) ?? ""; raw[c.k] = v; if (c.t==="num") v = num(v); else if (c.t==="text") v = String(v).trim(); out[c.k] = v; });
+    F.campos.flatMap(c => c.duo || [c]).forEach(c => { let v = fd.get(c.k) ?? ""; raw[c.k] = v; if (c.t==="num"){ v = num(v); if (v != null) v = Math.round(v * 100) / 100; } else if (c.t==="text") v = String(v).trim(); out[c.k] = v; });
     const erro = validar(col, out, raw);
     if (erro){ mostrarErro("f_"+erro[0], erro[1]); return; }
     // mantém os campos que o formulário não mostra
