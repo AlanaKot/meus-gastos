@@ -46,7 +46,9 @@ O app compara cada linha do extrato com o que já está anotado (isso se chama c
 - **Já anotado:** mesmo valor e até 3 dias de diferença de um gasto que você digitou. Só confere, sem criar outro.
 - **Conta da casa:** mesmo valor de uma conta ainda não paga. Liga o "Paguei a conta".
 - **Pix das contas da casa:** entrada com o valor que uma pessoa te deve. Liga o "me pagou" dela. Vem marcado só quando o nome dela aparece no extrato.
-- **Já importado antes** e **pagamento da fatura do cartão:** vêm desmarcados.
+- **Já importado antes**, **pagamento da fatura do cartão** e **dinheiro que só mudou de lugar** (aplicação, resgate, caixinha): vêm desmarcados.
+
+Nos gastos novos, o app sugere a categoria de um gasto parecido que você já anotou (mesma loja ou pessoa). Quanto mais você usa, menos categorias precisa escolher.
 
 Só o que estiver marcado é aplicado, e **Cancelar** não muda nada. O que foi conferido ganha a marca "✓ extrato" na lista. O arquivo é lido no próprio aparelho e não é enviado para lugar nenhum.
 

@@ -1089,8 +1089,16 @@ function revisarOFX(itens){
   const dist = (a, b) => dataValida(a) && dataValida(b) ? Math.abs(parseD(a) - parseD(b)) / 86400000 : 999;
   const igual = (a, b) => Math.abs((num(a) ?? 0) - b) < 0.005, limpo = t => String(t).toLowerCase().replace(/\d+/g, "").trim();
   const dm = d => d.slice(8) + "/" + d.slice(5,7);
-  // sugere a categoria do último gasto com a mesma descrição
-  const sugerir = d => [...S.gastos].sort(maisNovos).find(g => limpo(g.descricao) === limpo(d) && cat(g.categoriaId))?.categoriaId || "";
+  // Categoria sugerida pelo histórico: funciona como uma regra que o app aprende sozinho.
+  // Primeiro procura um gasto com a mesma descrição; depois, um com o mesmo nome de loja ou pessoa
+  // (a descrição sem o começo que o banco coloca, como "Compra no débito - " ou "Pix enviado - ").
+  const nucleo = d => { const t = semAcento(d).replace(/\d+/g, " ").replace(/^(compra( no| de)? (debito|credito)|transferencia (enviada|recebida)( pelo pix)?|pix (enviado|recebido)|pagamento( de)? (boleto|conta)|debito automatico)\b/, "");
+    return t.replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim(); };
+  const antigos = [...S.gastos].sort(maisNovos).filter(g => cat(g.categoriaId));
+  const sugerir = d => { const n = nucleo(d);
+    return (antigos.find(g => limpo(g.descricao) === limpo(d)) || (n.length >= 4 && antigos.find(g => { const m = nucleo(g.descricao); return m.length >= 4 && (m === n || m.includes(n) || n.includes(m)); })))?.categoriaId || ""; };
+  // dinheiro que só mudou de lugar (aplicação, resgate, caixinha, conta da própria pessoa) não é gasto
+  const ehInterno = t => /aplica[cç][aã]o|resgate|caixinha|investiment|poupan[cç]a|entre contas|mesma titularidade/i.test(t.descricao);
   const ehFatura = t => t.pagamento !== "credito" && /pagamento\s+(de|da)\s+fatura|fatura\s+(de|do)\s+cart[aã]o/i.test(t.descricao);
   const usados = new Set(), maisPerto = (lista, t) => lista.sort((a,b) => dist(a.data, t.data) - dist(b.data, t.data))[0];
   itens.sort((a,b) => b.data.localeCompare(a.data));
@@ -1115,14 +1123,16 @@ function revisarOFX(itens){
   const cont = f => itens.filter(f).length, nNovos = cont(t => !t.rep && !t.conta && !t.gasto), nRep = cont(t => t.rep), nJa = cont(t => t.gasto), nContas = cont(t => t.conta);
   const resumo = [nNovos && plural(nNovos, "gasto novo", "gastos novos"), nJa && plural(nJa, "já anotado", "já anotados"), nContas && plural(nContas, "conta da casa", "contas da casa"),
     entradas.length && plural(entradas.length, "recebimento", "recebimentos"), nRep && plural(nRep, "já importado antes", "já importados antes")].filter(Boolean).join(" · ");
-  const linha = (t, i) => { const fat = !t.rep && !t.conta && !t.gasto && ehFatura(t);
+  const linha = (t, i) => { const livre = !t.rep && !t.conta && !t.gasto, fat = livre && ehFatura(t), int = livre && !fat && ehInterno(t), sug = livre ? sugerir(t.descricao) : "";
     const nota = t.rep ? '<span class="chip">já importado antes</span>'
       : t.conta ? `<span class="chip ok">conta da casa</span> Marca <b>${esc(t.conta.descricao)}</b> como paga. Não cria gasto em dobro.`
       : t.gasto ? `<span class="chip ok">já anotado</span> Confere com <b>${esc(t.gasto.descricao)}</b> (${dm(t.gasto.data)}). Não cria outro.`
-      : fat ? '<span class="chip warn">fatura do cartão</span> Desmarcado para as compras do cartão não contarem duas vezes.' : "";
-    return `<div class="imp"><label><input type="checkbox" name="i${i}" ${t.rep || fat ? "" : "checked"}><span class="grow"><span class="t">${esc(t.descricao)}</span><span class="m" style="display:block">${fmtData(t.data)} · ${rotPag(t.pagamento)}</span></span><span class="val">${brl(t.valor)}</span></label>
+      : fat ? '<span class="chip warn">fatura do cartão</span> Desmarcado para as compras do cartão não contarem duas vezes.'
+      : int ? '<span class="chip warn">não parece gasto</span> Dinheiro que só mudou de lugar. Marque se for gasto mesmo.'
+      : sug ? `<span class="chip">categoria sugerida</span> Igual à de um gasto parecido que você já anotou.` : "";
+    return `<div class="imp"><label><input type="checkbox" name="i${i}" ${t.rep || fat || int ? "" : "checked"}><span class="grow"><span class="t">${esc(t.descricao)}</span><span class="m" style="display:block">${fmtData(t.data)} · ${rotPag(t.pagamento)}</span></span><span class="val">${brl(t.valor)}</span></label>
       ${nota ? `<span class="m">${nota}</span>` : ""}
-      ${t.rep || t.conta || t.gasto ? "" : `<select name="c${i}" aria-label="Categoria de ${esc(t.descricao)}">${optCats().map(([a,b]) => `<option value="${esc(a)}" ${a===sugerir(t.descricao)?"selected":""}>${esc(b)}</option>`).join("")}</select>`}</div>`; };
+      ${t.rep || t.conta || t.gasto ? "" : `<select name="c${i}" aria-label="Categoria de ${esc(t.descricao)}">${optCats().map(([a,b]) => `<option value="${esc(a)}" ${a===sug?"selected":""}>${esc(b)}</option>`).join("")}</select>`}</div>`; };
   const frm = $("#frm");
   frm.innerHTML = `<h2 tabindex="-1" autofocus>Conferir extrato</h2>
     <p class="need">${resumo}.</p>
