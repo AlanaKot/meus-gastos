@@ -22,18 +22,22 @@ O `index.html` já segue o padrão do `meu-semestre-site`. Ao mexer, manter:
 - **Dados:** `localStorage` do navegador fora do claude.ai. Todo item salvo ganha `_t` (hora da mudança) e todo item apagado vai para `S.apagados`. Backup em `.json` (baixar e importar). Sincronização com o Google Drive é opcional e igual à do semestre; nunca gravar Client ID, chave ou senha no código.
 - Tudo em `index.html`, sem etapa de build. Precisa funcionar hospedado e aberto direto no navegador, sem depender de servidor nem de IA.
 
-## O que o app faz (já definido)
+## O que o app faz
 
-- **Painel:** gasto do mês, comparação com o mês anterior, orçamento do mês e quanto resta, média por dia e projeção, gasto por categoria e por dia, últimos gastos.
-- **Gastos:** lista por dia, filtro por categoria, navegação entre meses. Campos: descrição, valor, data, categoria, forma de pagamento (Pix, débito, crédito, dinheiro, boleto).
-- **Contas (da casa):** contas divididas com quem mora junto. Campos: conta, valor total, vencimento. Em cada conta, chaves para marcar "Paguei a conta" e "Fulana me pagou". Os nomes ficam em `S.config.pessoas`; a divisão é por nomes + 1. Mostra o que falta pagar, o que falta receber e quanto cada pessoa deve somando todos os meses.
+- **Painel:** gasto do mês, comparação com o mês anterior, orçamento do mês e quanto resta, média por dia e projeção, gasto por categoria, por forma de pagamento, por dia e nos últimos 6 meses, últimos gastos.
+- **Gastos:** lista por dia, filtro por categoria, navegação entre meses. Campos: descrição, valor, data, categoria, forma de pagamento (Pix, débito, crédito, dinheiro, boleto). Parcelas (um gasto por mês, só ao criar), "Repetir todo mês" e Duplicar.
+- **Contas (da casa):** a dona paga todas as contas e as amigas mandam o Pix da parte delas. Campos: conta, valor total, vencimento, quem divide (`fora` guarda quem não entra), "Repetir todo mês". Chaves "Paguei a conta" e "Fulana me pagou". Os nomes ficam em `S.config.pessoas`; a divisão é em partes iguais entre quem entra + ela. Botão Cobrar monta a mensagem (com `S.config.pix`, se houver).
+- A parte dela numa conta paga aparece nos gastos, calculada na hora por `todosGastos()` (não é salva em dobro), na categoria "Casa" (`catCasa()`).
+- **Fixos:** `gerarFixos()` cria a cópia do mês novo com código `série-mês`, para dois aparelhos sincronizados não duplicarem.
 - **Categorias:** nome, cor e limite mensal opcional, com barra de progresso (verde, amarelo, vermelho).
-- Apagar uma categoria apaga também os gastos dela, com confirmação.
+- Apagar uma categoria apaga também os gastos dela, com confirmação. Apagar gasto ou conta oferece Desfazer.
+- **Busca** (lupa), **exportar CSV** e **importar extrato OFX** (só saídas, com revisão antes de salvar; `ofx` no gasto evita duplicar). PDF de extrato não é lido, de propósito.
+- **Sincronização com o Google Drive:** opcional, copiada do semestre (arquivo `meus-gastos.json` na `appDataFolder`).
 - Dinheiro em pt-BR (R$ 1.250,00). Aceitar `12,50`, `12.50` e `1.250,00` na digitação.
 
 ## Ideias para depois
 
-Gastos recorrentes (aluguel, assinaturas), receitas e saldo, parcelas no crédito, busca por texto, exportar CSV, gráfico dos últimos 6 meses.
+Receitas e saldo, divisão em partes diferentes por conta, marcar "me pagou" a partir do Pix recebido no extrato, apagar todas as parcelas de uma vez.
 
 ## Publicação
 
