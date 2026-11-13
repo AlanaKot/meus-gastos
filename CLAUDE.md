@@ -1,41 +1,40 @@
-# Meus Gastos
+# Regras do projeto
 
-App pessoal para anotar gastos. Irmão do **Meu Semestre**: mesmo design, mesma arquitetura. Idioma da interface: português do Brasil.
+Meus Gastos: app pessoal para anotar gastos. Irmão do **Meu Semestre**, e deve seguir o mesmo padrão dele, que está no repositório público `AlanaKot/meu-semestre-site`. Leia o `CLAUDE.md`, o `README.md` e o `index.html` de lá antes de mexer aqui.
 
-- Artifact publicado (privado): https://claude.ai/artifact/SaNn98yvH8JiaZFiunRwRC
-- Referência de design/arquitetura: https://claude.ai/artifact/MhENF93F5skc6ehxVQWa2h (Meu Semestre)
-- Repositório do app do semestre: AlanaKot/meu-semestre e AlanaKot/meu-semestre-site. Ao mexer neste projeto, copie as convenções de lá.
+## Sobre quem usa
 
-## Arquivo
-Tudo está em `index.html`: um único arquivo com CSS e JS inline, sem build e sem dependências. Só carrega fontes do Google Fonts (Bricolage Grotesque, Inter, JetBrains Mono).
+- A dona do projeto é iniciante em programação. Explique termos novos em uma frase.
+- Respostas curtas e diretas, em português.
 
-No Artifact, o arquivo é publicado sem `<!doctype>`, `<html>`, `<head>` ou `<body>` (o publicador envolve). Mantenha `<title>` e `<meta name="claude:viewport-fit-sides">` no topo.
+## Fluxo de mudanças
 
-## Design (não mudar sem pedido)
-Mesmos tokens do Meu Semestre, no `:root` do `<style>`:
-- Fundo `#f6f5f4`, superfície branca, texto azul-marinho `#14213d`, destaque bordô `#7a1f35`.
-- Tema escuro em `prefers-color-scheme` e `[data-theme="dark"]` (bordô `#b83a56`).
-- Cores semânticas ok/warn/bad com fundos próprios.
-- Fontes: `--f-display` Bricolage Grotesque, `--f-body` Inter, `--f-mono` JetBrains Mono (valores e números).
-- Componentes: `.panel`, `.card`, `.chip`, `.meter`, `.row`, `.bar`, `.grid2`, `dialog`, `.toast`. Cabeçalho fixo com abas.
-- Dinheiro sempre em `--f-mono` com `tabular-nums`, formato `pt-BR` BRL.
+- Nunca enviar direto na `main`.
+- Toda mudança: criar uma branch, fazer commit, abrir um PR e mandar o link.
+- Só fazer merge quando ela pedir ("pode juntar").
 
-## Dados
-Coleções (db do Artifact, regra `read: owner, write: owner`):
-- `categorias`: `{nome, orcamento (limite mensal, opcional), cor}`
-- `gastos`: `{descricao, valor, data "YYYY-MM-DD", categoriaId, pagamento}`
-- doc `config/geral`: `{orcamento}` (orçamento total do mês, opcional)
-- `exemplo: true` marca itens de demonstração; o botão "Apagar exemplos" remove todos.
+## Estado atual: o `index.html` é só um rascunho
 
-Sem o capability `db` (arquivo aberto fora do Claude) o app cai para `localStorage` (chave `meus-gastos-v1`). Capabilities declaradas na publicação: `db` e `downloads` (backup .json).
+O `index.html` atual foi feito no visual **antigo** do Meu Semestre (bordô e azul-marinho, fonte Bricolage Grotesque). Esse não é o padrão. A primeira tarefa é refazê-lo no padrão do `meu-semestre-site`:
 
-Apagar uma categoria apaga também os gastos dela, com confirmação de dois cliques.
+- **Visual:** padrão dos apps do iPhone. Título grande da aba, listas agrupadas em quadros brancos sobre fundo cinza claro (preto no modo escuro), barra de abas embaixo no celular e pílula no topo em telas largas. A cor do app é escolhida pela pessoa no botão Aparência (azul claro do iPhone 14 por padrão, ou bordô), guardada só no aparelho. Fontes do próprio sistema, sem Google Fonts.
+- **Arquivos na mesma pasta do `index.html`:** `manifest.webmanifest`, `sw.js` e os ícones `icon-192.png`, `icon-512.png` e `apple-touch-icon.png` (modo aplicativo, funciona sem internet). Ao mudar `sw.js` ou os ícones, aumentar a `VERSAO` dentro do `sw.js`. Os ícones daqui precisam ser novos, não os do semestre.
+- **Dados:** `localStorage` do navegador fora do claude.ai. Todo item salvo ganha `_t` (hora da mudança) e todo item apagado vai para `S.apagados`. Backup em `.json` (baixar e importar). Sincronização com o Google Drive é opcional e igual à do semestre; nunca gravar Client ID, chave ou senha no código.
+- Tudo em `index.html`, sem etapa de build. Precisa funcionar hospedado e aberto direto no navegador, sem depender de servidor nem de IA.
 
-## Telas
-Painel (total do mês, orçamento, média/dia e projeção, por categoria com limite, gasto por dia, últimos gastos), Gastos (lista por dia com filtro de categoria), Categorias (limite por categoria). Navegação de mês nas três.
+## O que o app faz (já definido)
 
-## Ideias para a próxima etapa
+- **Painel:** gasto do mês, comparação com o mês anterior, orçamento do mês e quanto resta, média por dia e projeção, gasto por categoria e por dia, últimos gastos.
+- **Gastos:** lista por dia, filtro por categoria, navegação entre meses. Campos: descrição, valor, data, categoria, forma de pagamento (Pix, débito, crédito, dinheiro, boleto).
+- **Categorias:** nome, cor e limite mensal opcional, com barra de progresso (verde, amarelo, vermelho).
+- Apagar uma categoria apaga também os gastos dela, com confirmação.
+- Dinheiro em pt-BR (R$ 1.250,00). Aceitar `12,50`, `12.50` e `1.250,00` na digitação.
+
+## Ideias para depois
+
 Gastos recorrentes (aluguel, assinaturas), receitas e saldo, parcelas no crédito, busca por texto, exportar CSV, gráfico dos últimos 6 meses.
 
-## Como publicar uma mudança
-Republique o mesmo arquivo no mesmo Artifact (a URL acima). Não mude o `<title>` ("Meus Gastos"). Não coloque dados reais do usuário no código: eles ficam no db.
+## Publicação
+
+- O site é publicado pelo GitHub Pages (branch `main`, pasta raiz). O repositório é público, e não tem dado pessoal no código.
+- Existe um rascunho no claude.ai (https://claude.ai/artifact/SaNn98yvH8JiaZFiunRwRC) no visual antigo. Se for republicar lá, envie só o conteúdo de dentro do `<head>` (do `<title>` em diante) e do `<body>`, sem as tags `<!doctype>`, `<html>`, `<head>` e `<body>`.
