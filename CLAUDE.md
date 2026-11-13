@@ -31,15 +31,15 @@ O `index.html` já segue o padrão do `meu-semestre-site`. Ao mexer, manter:
 - **Fixos:** `gerarFixos()` cria a cópia do mês novo com código `série-mês`, para dois aparelhos sincronizados não duplicarem.
 - **Categorias:** nome, cor e limite mensal opcional, com barra de progresso (verde, amarelo, vermelho).
 - Apagar uma categoria apaga também os gastos dela, com confirmação. Apagar gasto ou conta oferece Desfazer.
-- **Busca** (lupa), **exportar CSV** e **importar extrato OFX** (só saídas, com revisão antes de salvar; `ofx` no gasto evita duplicar). PDF de extrato não é lido, de propósito.
+- **Busca** (lupa), **exportar CSV** e **conferir extrato OFX** (`revisarOFX`): concilia cada linha com gastos já anotados, contas da casa e Pix recebido de quem divide, com revisão antes de aplicar; `ofx` no item e `ofxRec` na conta evitam repetir. PDF de extrato não é lido, de propósito.
 - **Sincronização com o Google Drive:** opcional, copiada do semestre (arquivo `meus-gastos.json` na `appDataFolder`).
 - Dinheiro em pt-BR (R$ 1.250,00). Aceitar `12,50`, `12.50` e `1.250,00` na digitação.
 
 ## Ideias para depois
 
-Receitas e saldo, divisão em partes diferentes por conta, marcar "me pagou" a partir do Pix recebido no extrato, apagar todas as parcelas de uma vez.
+Receitas e saldo, divisão em partes diferentes por conta, apagar todas as parcelas de uma vez.
 
 ## Publicação
 
 - O site é publicado pelo GitHub Pages (branch `main`, pasta raiz). O repositório é público, e não tem dado pessoal no código.
-- Existe um rascunho no claude.ai (https://claude.ai/artifact/SaNn98yvH8JiaZFiunRwRC) no visual antigo. Se for republicar lá, envie só o conteúdo de dentro do `<head>` (do `<title>` em diante) e do `<body>`, sem as tags `<!doctype>`, `<html>`, `<head>` e `<body>`.
+- Existe uma cópia do app no claude.ai (https://claude.ai/artifact/SaNn98yvH8JiaZFiunRwRC), para dar uma olhada. Lá os dados ficam na conta do Claude, separados dos do site. Para republicar lá, envie só o conteúdo de dentro do `<head>` (do `<title>` em diante) e do `<body>`, sem as tags `<!doctype>`, `<html>`, `<head>` e `<body>`.
