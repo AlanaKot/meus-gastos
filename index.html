@@ -1040,19 +1040,26 @@ async function exportarCSV(){
 /* ---------- importar extrato do banco (.ofx) ---------- */
 // OFX é um arquivo de texto que os bancos oferecem em "exportar extrato". O app lê as saídas e deixa a pessoa escolher o que entra.
 // Tudo acontece no aparelho: o arquivo não é enviado para lugar nenhum.
+// valor de um lançamento do OFX: o padrão é -1234.56, mas alguns bancos mandam -1.234,56 ou -1234,56
+const valorOFX = v => { let t = String(v).trim().replace(/\s/g, "");
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  return /^[+-]?\d*\.?\d+$/.test(t) ? Number(t) : NaN; };
 function lerOFX(txt){
   const cartao = /<CCSTMTRS>|<CREDITCARDMSGSRSV1>/i.test(txt);
   const campo = (b, k) => { const m = b.match(new RegExp("<" + k + ">([^<\\r\\n]*)", "i")); return m ? m[1].replace(/&amp;/g, "&").replace(/\s+/g, " ").trim() : ""; };
-  const itens = (txt.match(/<STMTTRN>[\s\S]*?(?=<\/STMTTRN>|<STMTTRN>|<\/BANKTRANLIST>|$)/gi) || []).map(b => {
+  let itens = (txt.match(/<STMTTRN>[\s\S]*?(?=<\/STMTTRN>|<STMTTRN>|<\/BANKTRANLIST>|$)/gi) || []).map(b => {
     const d = campo(b, "DTPOSTED"), memo = campo(b, "MEMO"), nome = campo(b, "NAME");
-    return { valor: parseFloat(campo(b, "TRNAMT").replace(",", ".")), tipo: campo(b, "TRNTYPE").toUpperCase(), fitid: campo(b, "FITID"),
+    return { valor: valorOFX(campo(b, "TRNAMT")), tipo: campo(b, "TRNTYPE").toUpperCase(), fitid: campo(b, "FITID"),
       data: d.length >= 8 ? `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}` : "", descricao: memo && nome && !memo.includes(nome) ? `${nome} ${memo}` : memo || nome || "Sem descrição" };
-  }).filter(t => isFinite(t.valor) && t.valor !== 0 && dataValida(t.data));
+  });
+  // lançamento com valor ou data que não dá para ler fica de fora, e a pessoa é avisada na revisão (para nada sumir em silêncio)
+  const todos = itens.length; itens = itens.filter(t => isFinite(t.valor) && dataValida(t.data));
+  const ilegiveis = todos - itens.length; itens = itens.filter(t => t.valor !== 0);
   // saída = valor negativo. Algumas faturas de cartão trazem as compras com valor positivo: aí vale o que não for crédito/pagamento.
   let saidas = itens.filter(t => t.valor < 0);
   if (cartao && !saidas.length) saidas = itens.filter(t => !/CREDIT|PAYMENT/.test(t.tipo));
-  return saidas.map(t => ({ ...t, valor: Math.round(Math.abs(t.valor) * 100) / 100, chave: `${t.fitid}|${t.data}|${Math.abs(t.valor).toFixed(2)}`,
-    pagamento: cartao ? "credito" : /pix/i.test(t.descricao) ? "pix" : /boleto|t[ií]tulo|conta de/i.test(t.descricao) ? "boleto" : /saque/i.test(t.descricao) ? "dinheiro" : "debito" }));
+  return Object.assign(saidas.map(t => ({ ...t, valor: Math.round(Math.abs(t.valor) * 100) / 100, chave: `${t.fitid}|${t.data}|${Math.abs(t.valor).toFixed(2)}`,
+    pagamento: cartao ? "credito" : /pix/i.test(t.descricao) ? "pix" : /boleto|t[ií]tulo|conta de/i.test(t.descricao) ? "boleto" : /saque/i.test(t.descricao) ? "dinheiro" : "debito" })), { ilegiveis, total: todos });
 }
 function escolherOFX(){
   const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".ofx,.qfx,application/x-ofx";
@@ -1063,7 +1070,7 @@ function escolherOFX(){
       try { txt = new TextDecoder("utf-8", { fatal:true }).decode(buf); } catch(_){ txt = new TextDecoder("windows-1252").decode(buf); } } catch(_){}
     if (!/<OFX>/i.test(txt)){ toast("Este arquivo não é um extrato OFX."); return; }
     const itens = lerOFX(txt);
-    if (!itens.length){ toast("Nenhuma saída encontrada neste extrato."); return; }
+    if (!itens.length){ toast(itens.ilegiveis ? "Não deu para ler os valores deste extrato. Exporte de novo no banco." : itens.total ? "Este extrato só tem entradas, nenhuma saída." : "Este extrato não tem movimentações."); return; }
     revisarOFX(itens);
   };
   inp.click();
@@ -1072,12 +1079,17 @@ function revisarOFX(itens){
   const ja = new Set(S.gastos.map(g => g.ofx).filter(Boolean)), limpo = t => String(t).toLowerCase().replace(/\d+/g, "").trim();
   // sugere a categoria do último gasto com a mesma descrição
   const sugerir = d => [...S.gastos].sort(maisNovos).find(g => limpo(g.descricao) === limpo(d) && cat(g.categoriaId))?.categoriaId || "";
+  const ilegiveis = itens.ilegiveis || 0;
   itens.sort((a,b) => b.data.localeCompare(a.data));
   const repetidos = itens.filter(t => ja.has(t.chave)).length;
+  // pagamento da fatura do cartão, no extrato da conta: vem desmarcado, porque as compras do cartão já entram uma a uma pela fatura
+  const ehFatura = t => t.pagamento !== "credito" && /pagamento\s+(de|da)\s+fatura|fatura\s+(de|do)\s+cart[aã]o/i.test(t.descricao);
+  const faturas = itens.filter(t => ehFatura(t) && !ja.has(t.chave)).length;
   const frm = $("#frm");
   frm.innerHTML = `<h2 tabindex="-1" autofocus>Importar extrato</h2>
-    <p class="need">${plural(itens.length,"saída encontrada","saídas encontradas")}. Entradas de dinheiro ficam de fora.${repetidos?` ${plural(repetidos,"já foi importada","já foram importadas")} antes e ${repetidos===1?"vem desmarcada":"vêm desmarcadas"}.`:""} Desmarque o que não é gasto seu e escolha as categorias.</p>
-    <div>${itens.map((t,i) => `<div class="imp"><label><input type="checkbox" name="i${i}" ${ja.has(t.chave)?"":"checked"}><span class="grow"><span class="t">${esc(t.descricao)}</span><span class="m" style="display:block">${fmtData(t.data)} · ${rotPag(t.pagamento)}</span></span><span class="val">${brl(t.valor)}</span></label>
+    <p class="need">${plural(itens.length,"saída encontrada","saídas encontradas")}. Entradas de dinheiro ficam de fora.${repetidos?` ${plural(repetidos,"já foi importada","já foram importadas")} antes e ${repetidos===1?"vem desmarcada":"vêm desmarcadas"}.`:""}${faturas?" O pagamento da fatura do cartão vem desmarcado, para as compras do cartão não contarem duas vezes.":""} Desmarque o que não é gasto seu e escolha as categorias.</p>
+    ${ilegiveis?`<p class="erro">${plural(ilegiveis,"movimentação não pôde ser lida e ficou","movimentações não puderam ser lidas e ficaram")} de fora. Confira no extrato do banco.</p>`:""}
+    <div>${itens.map((t,i) => `<div class="imp"><label><input type="checkbox" name="i${i}" ${ja.has(t.chave) || ehFatura(t)?"":"checked"}><span class="grow"><span class="t">${esc(t.descricao)}</span><span class="m" style="display:block">${fmtData(t.data)} · ${rotPag(t.pagamento)}</span></span><span class="val">${brl(t.valor)}</span></label>
       <select name="c${i}" aria-label="Categoria de ${esc(t.descricao)}">${optCats().map(([a,b]) => `<option value="${esc(a)}" ${a===sugerir(t.descricao)?"selected":""}>${esc(b)}</option>`).join("")}</select></div>`).join("")}</div>
     <div class="actions"><span></span><div class="r"><button type="button" id="cancel">Cancelar</button><button type="submit" class="primary">Importar marcados</button></div></div>`;
   $("#cancel").onclick = () => $("#dlg").close();
