@@ -37,9 +37,9 @@ O `index.html` já segue o padrão do `meu-semestre-site`. Ao mexer, manter:
 
 ## Ideias para depois
 
-Receitas e saldo, divisão em partes diferentes por conta, marcar "me pagou" a partir do Pix recebido no extrato, apagar todas as parcelas de uma vez.
+Receitas e saldo, divisão em partes diferentes por conta, apagar todas as parcelas de uma vez.
 
 ## Publicação
 
 - O site é publicado pelo GitHub Pages (branch `main`, pasta raiz). O repositório é público, e não tem dado pessoal no código.
-- Existe um rascunho no claude.ai (https://claude.ai/artifact/SaNn98yvH8JiaZFiunRwRC) no visual antigo. Se for republicar lá, envie só o conteúdo de dentro do `<head>` (do `<title>` em diante) e do `<body>`, sem as tags `<!doctype>`, `<html>`, `<head>` e `<body>`.
+- Existe uma cópia do app no claude.ai (https://claude.ai/artifact/SaNn98yvH8JiaZFiunRwRC), para dar uma olhada. Lá os dados ficam na conta do Claude, separados dos do site. Para republicar lá, envie só o conteúdo de dentro do `<head>` (do `<title>` em diante) e do `<body>`, sem as tags `<!doctype>`, `<html>`, `<head>` e `<body>`.
