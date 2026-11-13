@@ -232,6 +232,14 @@ input::-webkit-date-and-time-value{text-align:left;margin:0;min-height:1.4em}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--barra);color:var(--fg);
   -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);box-shadow:0 0 0 .5px var(--line),0 10px 30px -10px rgba(0,0,0,.35);
   padding:10px 18px;border-radius:999px;font-size:.94rem;font-weight:500;z-index:40;white-space:nowrap;max-width:calc(100vw - 32px);overflow:hidden;text-overflow:ellipsis}
+.toast button{min-height:0!important;padding:0 0 0 12px!important;font-weight:600;background:none}
+/* chave de ligar e desligar, como as do iPhone (aba Contas) */
+.chave{cursor:pointer}
+.chave input[type=checkbox]{-webkit-appearance:none;appearance:none;width:51px!important;height:31px!important;padding:0!important;border-radius:999px;background:var(--fill-2);position:relative;flex:none;cursor:pointer;margin:0}
+.chave input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25)}
+.chave input[type=checkbox]:checked{background:var(--m-ok)}
+.chave input[type=checkbox]:checked::after{transform:translateX(20px)}
+.conta{margin-bottom:12px}
 .filter{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .filter select{width:auto;max-width:100%;min-width:0;text-overflow:ellipsis}
 
@@ -292,6 +300,7 @@ input::-webkit-date-and-time-value{text-align:left;margin:0;min-height:1.4em}
 <nav id="tabs" aria-label="Seções">
   <a href="#painel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 8.5 8.5H12z"/><path d="M15.5 3.2a8.5 8.5 0 0 1 5.3 5.3h-5.3z"/></svg>Painel</a>
   <a href="#gastos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h12v17l-3-2-3 2-3-2-3 2z"/><path d="M9.5 8.5h5M9.5 12.5h5"/></svg>Gastos</a>
+  <a href="#contas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.5 12 4l8 7.5V20h-5v-5H9v5H4z"/></svg>Contas</a>
   <a href="#categorias"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5a1.5 1.5 0 0 1 1.5-1.5h6.2l8.3 8.3a1.5 1.5 0 0 1 0 2.1l-5.6 5.6a1.5 1.5 0 0 1-2.1 0L4 11.7z"/><circle cx="8.5" cy="8.5" r="1.3"/></svg>Categorias</a>
 </nav>
 <header>
@@ -311,14 +320,14 @@ input::-webkit-date-and-time-value{text-align:left;margin:0;min-height:1.4em}
 <script>
 (() => {
 const CORES = ["#3b6fd8","#d9534f","#2e9e6a","#c58a12","#8a55c9","#d0679d","#1f9bb0","#6b7a8f"];
-const COLS = ["categorias","gastos"];
+const COLS = ["categorias","gastos","contas"];
 const LS_KEY = "meus-gastos-v1";
 const LS_BACKUP = "meus-gastos-backup-em";
 const PAGAMENTOS = [["pix","Pix"],["debito","Débito"],["credito","Crédito"],["dinheiro","Dinheiro"],["boleto","Boleto"]];
 const FORA_DO_CLAUDE = !window.claude; // site próprio ou arquivo aberto no navegador
 
 // S guarda todos os dados. "apagados" anota o que foi apagado (código do item -> hora), para uma futura sincronização entre aparelhos.
-const S = { categorias:[], gastos:[], config:{ orcamento:null }, apagados:{} };
+const S = { categorias:[], gastos:[], contas:[], config:{ orcamento:null }, apagados:{} };
 let db = null, mode = "carregando";
 
 /* ---------- utilidades ---------- */
@@ -350,13 +359,18 @@ const nomeDe = id => cat(id)?.nome || "Sem categoria";
 const rotPag = p => (PAGAMENTOS.find(x => x[0] === p) || [,""])[1];
 const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36);
 const plural = (n, um, varios) => n + " " + (n === 1 ? um : varios);
-function toast(msg){ const t=$("#toast"); t.textContent=msg; t.hidden=false; clearTimeout(toast.h); toast.h=setTimeout(()=>t.hidden=true,2200); }
+// aviso rápido no pé da tela; "acao" é um botão opcional, como Desfazer
+function toast(msg, acao, fn){ const t=$("#toast"); t.textContent=msg;
+  if (acao){ const b=document.createElement("button"); b.className="ghost"; b.textContent=acao; b.onclick=()=>{ t.hidden=true; fn(); }; t.append(b); }
+  t.hidden=false; clearTimeout(toast.h); toast.h=setTimeout(()=>t.hidden=true, acao ? 5000 : 2200); }
 const mesData = m => { const [y,mm] = m.split("-").map(Number); return new Date(y,mm-1,1); };
 const mesLabel = m => mesData(m).toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
 const mesNome = m => mesData(m).toLocaleDateString("pt-BR",{month:"long"});
 const mesMais = (m,n) => { const d = mesData(m); d.setMonth(d.getMonth()+n); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
 const diasNoMes = m => { const [y,mm] = m.split("-").map(Number); return new Date(y,mm,0).getDate(); };
-let mes = mesAtual(); // mês mostrado nas três abas
+// mesma data no mês seguinte (dia 31 vira o último dia quando o mês é mais curto)
+const proxMes = s => { const m = mesMais(s.slice(0,7), 1); return m + "-" + String(Math.min(+s.slice(8), diasNoMes(m))).padStart(2,"0"); };
+let mes = mesAtual(); // mês mostrado em todas as abas
 
 /* ---------- armazenamento ---------- */
 function loadLocal(){
@@ -439,17 +453,25 @@ const textoResta = (resta, lim) => resta > 0 ? `Restam <b class="num">${brl0(res
   : resta === 0 ? `<span class="chip warn">No limite</span> de ${brl0(lim)}`
   : `<span class="chip bad">Passou ${brl0(-resta)}</span> do limite de ${brl0(lim)}`;
 
+// contas da casa: quem divide com você (os nomes ficam em S.config.pessoas) e a parte de cada pessoa
+const pessoas = () => { const p = S.config.pessoas; return Array.isArray(p) && p.length ? p.map(String) : ["Amiga 1","Amiga 2"]; };
+const parteDe = c => (num(c.valor) ?? 0) / (pessoas().length + 1);
+const recebeu = (c, i) => !!(c.recebido || [])[i];
+
 /* ---------- views ---------- */
 const svgI = d => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 const ICO = {
   carteira: svgI('<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H17v3"/><path d="M4 7.5V17a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 1 4 7.5z"/><path d="M16 13.5h.5"/>'),
+  casa: svgI('<path d="M4 11.5 12 4l8 7.5V20h-5v-5H9v5H4z"/>'),
+  pagar: svgI('<path d="M12 4v13M7 12l5 5 5-5M5 20h14"/>'),
+  receber: svgI('<path d="M12 17V4M7 9l5-5 5 5M5 20h14"/>'),
   alvo: svgI('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/>'),
   media: svgI('<path d="M4 19h16M7 16v-4M12 16V7M17 16v-6"/>'),
 };
 // fora do Claude os dados vivem só neste navegador, então lembramos do backup
 function marcarBackup(){ try { localStorage.setItem(LS_BACKUP, hojeISO()); } catch(e){} }
 function avisoBackup(){
-  if (!FORA_DO_CLAUDE || mode !== "local" || !S.gastos.length) return "";
+  if (!FORA_DO_CLAUDE || mode !== "local" || !(S.gastos.length || S.contas.length)) return "";
   let ult = null; try { ult = localStorage.getItem(LS_BACKUP); } catch(e){}
   const dias = dataValida(ult) ? diasDesde(ult) : null;
   if (dias != null && dias < 7) return "";
@@ -494,7 +516,7 @@ function vPainel(){
   const cats = S.categorias.map(c => ({c, ...resumoCat(c.id, mes)})).filter(x => x.total || x.lim);
   const sem = soma(lista.filter(g => !cat(g.categoriaId)));
   if (sem) cats.push({ c:{id:"",nome:"Sem categoria",cor:"#8e8e93"}, total:sem, lim:null, resta:null });
-  const linhasCat = cats.sort((a,b) => b.total - a.total).map(({c,total:t,lim,resta}) => `<div class="row" ${c.id?editavel("categorias", c.id):""}><span class="dot" style="background:${corOk(c.cor)}"></span>
+  const linhasCat = cats.sort((a,b) => b.total - a.total).map(({c,total:t,lim,resta}) => `<div class="row" ${c.id?`data-acao="vercat" data-id="${esc(c.id)}" role="button" tabindex="0" style="cursor:pointer"`:""}><span class="dot" style="background:${corOk(c.cor)}"></span>
     <div class="grow"><div class="t">${esc(c.nome)}</div>
       ${lim?`${meter(t,lim)}<div class="m">${textoResta(resta,lim)}</div>`:`<div class="m">${total?Math.round(t/total*100)+"% do mês":"Sem limite"}</div>`}</div>
     <span class="val">${brl(t)}</span></div>`).join("");
@@ -538,6 +560,38 @@ function vGastos(){
     :`<div class="grupo"><p class="empty">${filtroCat?"Nenhum gasto dessa categoria neste mês.":"Nenhum gasto neste mês. Toque no + para anotar o primeiro."}</p></div>`}`;
 }
 
+function vContas(){
+  const ps = pessoas(), n = ps.length + 1, hoje = hojeISO();
+  const lista = S.contas.filter(c => (c.data||"").startsWith(mes)).sort((a,b) => (a.data||"").localeCompare(b.data||"") || (a._t||0) - (b._t||0));
+  const total = soma(lista), abertas = lista.filter(c => !c.paga);
+  const aReceber = lista.reduce((a,c) => a + parteDe(c) * ps.filter((_,i) => !recebeu(c,i)).length, 0);
+  const widgets = `<div class="wg">
+    <div class="w tinta"><span class="k">${ICO.casa}Contas do mês</span><span class="gr">${brl(total)}</span><span class="p">Sua parte: ${brl(total / n)} · dividido por ${n}</span></div>
+    <div class="w"><span class="k">${ICO.pagar}Falta pagar</span><span class="gr">${brl(soma(abertas))}</span><span class="p">${abertas.length?plural(abertas.length,"conta","contas"):lista.length?"Tudo pago":"Nenhuma conta"}</span></div>
+    <div class="w"><span class="k">${ICO.receber}Falta receber</span><span class="gr">${brl(aReceber)}</span><span class="p">${aReceber>0?"das contas deste mês":lista.length?"Tudo recebido":"Nenhuma conta"}</span></div>
+  </div>`;
+  const cartoes = lista.map(c => { const tudo = c.paga && ps.every((_,i) => recebeu(c,i));
+    const chip = tudo ? ' <span class="chip ok">acertada</span>' : !c.paga && c.data < hoje ? ' <span class="chip bad">vencida</span>' : !c.paga && c.data === hoje ? ' <span class="chip warn">vence hoje</span>' : "";
+    return `<div class="grupo conta"><div class="list">
+      <div class="row" ${editavel("contas", c.id)}><div class="grow"><div class="t">${esc(c.descricao)}${chip}</div>
+        <div class="m">Vence ${fmtData(c.data)} · ${brl(parteDe(c))} para cada</div></div><span class="val">${brl(num(c.valor))}</span></div>
+      <label class="row chave"><span class="grow t">Paguei a conta</span><input type="checkbox" data-chk="paga" data-id="${esc(c.id)}" ${c.paga?"checked":""}></label>
+      ${ps.map((nome,i) => `<label class="row chave"><span class="grow t">${esc(nome)} me pagou</span><input type="checkbox" data-chk="${i}" data-id="${esc(c.id)}" ${recebeu(c,i)?"checked":""}></label>`).join("")}
+    </div></div>`; }).join("");
+  // o que cada pessoa ainda deve, somando todos os meses (para uma dívida antiga não sumir ao trocar de mês)
+  const deve = ps.map((nome,i) => { const pend = S.contas.filter(c => !recebeu(c,i)); return { nome, qtd:pend.length, total:pend.reduce((a,c) => a + parteDe(c), 0) }; });
+  return `${avisoBackup()}
+  ${barraMes("contas","Nova conta")}
+  ${widgets}
+  <div class="grid2">
+    <section class="sec"><div class="bar"><h3>Contas</h3></div>
+      ${cartoes || '<div class="grupo"><p class="empty">Nenhuma conta com vencimento neste mês. Toque no + para anotar a primeira.</p></div>'}</section>
+    <section class="sec"><div class="bar"><h3>Quem te deve</h3><button class="ghost" data-acao="pessoas">Nomes</button></div>
+      <div class="grupo"><div class="list">${deve.map(d => `<div class="row"><div class="grow"><div class="t">${esc(d.nome)}</div>
+        <div class="m">${d.qtd?plural(d.qtd,"conta em aberto","contas em aberto")+", somando todos os meses":"Tudo acertado"}</div></div><span class="val">${brl(d.total)}</span></div>`).join("")}</div></div></section>
+  </div>`;
+}
+
 function vCategorias(){
   return `${barraMes("categorias","Nova categoria")}
   <div class="cards">${S.categorias.map(c => { const r = resumoCat(c.id, mes);
@@ -555,7 +609,10 @@ const FORMS = {
     {k:"nome",l:"Nome",t:"text",req:1,ph:"Ex.: Mercado"},
     {k:"orcamento",l:"Limite mensal (opcional)",t:"num",ph:"Ex.: 600,00",hint:"Mostra quanto ainda dá para gastar nessa categoria no mês."},
     {k:"cor",l:"Cor",t:"cor"} ]},
-  gastos: { titulo:"Novo gasto", editar:"Editar gasto", campos:[
+  contas: { titulo:"Nova conta", editar:"Editar conta", apagado:"Conta apagada", campos:[
+    {k:"descricao",l:"Conta",t:"text",req:1,ph:"Ex.: Luz, Internet, Aluguel"},
+    {duo:[{k:"valor",l:"Valor total (R$)",t:"num",ph:"0,00"},{k:"data",l:"Vencimento",t:"date",def:hojeISO}]} ]},
+  gastos: { titulo:"Novo gasto", editar:"Editar gasto", apagado:"Gasto apagado", campos:[
     {k:"descricao",l:"Descrição",t:"text",req:1,ph:"Ex.: Almoço, Uber, Netflix"},
     {duo:[{k:"valor",l:"Valor (R$)",t:"num",ph:"0,00"},{k:"data",l:"Data",t:"date",def:hojeISO}]},
     {duo:[{k:"categoriaId",l:"Categoria",t:"select",opts:optCats},{k:"pagamento",l:"Pagamento",t:"select",opts:PAGAMENTOS,def:"pix"}]} ]},
@@ -576,9 +633,9 @@ function validar(col, out, raw){
     if (c.t==="num" && String(raw[c.k] ?? "").trim() !== "" && out[c.k] == null) return [c.k, `${c.l.split(" (")[0]}: use só números, como 12,50.`];
   if (!String(out[FORMS[col].campos[0].k]).trim()) return [FORMS[col].campos[0].k, "Preencha este campo."];
   if (col==="categorias" && out.orcamento != null && out.orcamento <= 0) return ["orcamento", "O limite precisa ser maior que zero, ou deixe vazio."];
-  if (col==="gastos"){
-    if (out.valor == null || out.valor <= 0) return ["valor", "Informe o valor gasto (maior que zero)."];
-    if (!dataValida(out.data)) return ["data", "Informe a data do gasto."];
+  if (col!=="categorias"){
+    if (out.valor == null || out.valor <= 0) return ["valor", "Informe o valor (maior que zero)."];
+    if (!dataValida(out.data)) return ["data", "Informe a data."];
   }
   return null;
 }
@@ -593,7 +650,7 @@ function abrirForm(col, id, preset={}){
   const frm = $("#frm");
   frm.innerHTML = `<h2>${id?F.editar:F.titulo}</h2>${campos}
     <p class="erro" id="erro" role="alert" hidden></p>
-    <div class="actions">${id?`<button type="button" class="danger" id="del">Excluir</button>`:"<span></span>"}
+    <div class="actions">${id?`<div class="r"><button type="button" class="danger" id="del">Excluir</button>${col==="gastos"?'<button type="button" id="dup">Duplicar</button>':col==="contas"?'<button type="button" id="dup">Repetir no mês seguinte</button>':""}</div>`:"<span></span>"}
       <div class="r"><button type="button" id="cancel">Cancelar</button><button type="submit" class="primary">Salvar</button></div></div>`;
   frm.noValidate = true;
   frm.onsubmit = async e => {
@@ -605,13 +662,19 @@ function abrirForm(col, id, preset={}){
     // mantém os campos que o formulário não mostra
     const { id:_, _t, ...resto } = item || {};
     const ok = await salvar(col, id, { ...resto, ...out });
-    if (ok){ if (col==="gastos") mes = out.data.slice(0,7); $("#dlg").close(); toast("Salvo"); render(); }
+    if (ok){ if (out.data) mes = out.data.slice(0,7); $("#dlg").close(); toast("Salvo"); render(); }
   };
   $("#cancel").onclick = () => $("#dlg").close();
   const del = $("#del");
   // apagar uma categoria leva junto os gastos dela
   const deps = col==="categorias" ? S.gastos.filter(x => x.categoriaId === id).map(x => ["gastos", x.id]) : [];
+  // duplicar: abre um item novo já preenchido (gasto com a data de hoje; conta com o vencimento no mês seguinte, sem nada marcado)
+  if ($("#dup")) $("#dup").onclick = () => { const { id:_, _t, paga, recebido, ...resto } = item; $("#dlg").close();
+    abrirForm(col, null, { ...resto, data: col==="contas" && dataValida(item.data) ? proxMes(item.data) : hojeISO() }); };
   if (del) del.onclick = async () => {
+    // gasto e conta: apaga na hora e oferece Desfazer. Categoria pede confirmação, porque leva os gastos junto.
+    if (col!=="categorias"){ const { id:_, _t, ...resto } = item;
+      await apagar(col, id); $("#dlg").close(); toast(F.apagado, "Desfazer", () => salvar(col, id, resto)); return; }
     if (del.dataset.arm){
       del.disabled = true;
       for (const [c, i] of deps) await apagar(c, i);
@@ -639,6 +702,22 @@ function abrirConfig(){
   $("#dlg").showModal();
 }
 
+function abrirPessoas(){
+  const frm = $("#frm");
+  frm.innerHTML = `<h2>Quem divide as contas</h2>
+    <div class="field"><label for="c_pes">Nomes de quem divide com você, separados por vírgula</label><input id="c_pes" autocomplete="off" value="${esc(pessoas().join(", "))}" placeholder="Ex.: Ana, Bia"><span class="need">Você já entra na divisão, não precisa colocar seu nome. Com 2 nomes, cada conta é dividida por 3.</span></div>
+    <p class="erro" id="erro" role="alert" hidden></p>
+    <div class="actions"><span></span><div class="r"><button type="button" id="cancel">Cancelar</button><button class="primary" type="submit">Salvar</button></div></div>`;
+  frm.onsubmit = async e => { e.preventDefault();
+    const nomes = $("#c_pes").value.split(",").map(x => x.trim()).filter(Boolean);
+    if (!nomes.length || nomes.length > 8){ mostrarErro("c_pes", "Coloque de 1 a 8 nomes, separados por vírgula."); return; }
+    // se a quantidade de pessoas muda, as marcações de "me pagou" antigas ficam na mesma ordem dos nomes
+    await salvarConfig({ ...S.config, pessoas: nomes });
+    $("#dlg").close(); toast("Salvo"); };
+  $("#cancel").onclick = () => $("#dlg").close();
+  $("#dlg").showModal();
+}
+
 /* ---------- backup ---------- */
 async function baixarBackup(){
   const data = JSON.stringify({ app:"meus-gastos", versao:1, feitoEm:new Date().toISOString(), ...Object.fromEntries(COLS.map(c=>[c,S[c]])), config:S.config, apagados:S.apagados||{} }, null, 2);
@@ -658,7 +737,7 @@ async function baixarBackup(){
 function abrirBackup(){
   const frm = $("#frm");
   frm.innerHTML = `<h2 tabindex="-1" autofocus>Backup dos seus dados</h2>
-    <p class="need">Baixe um arquivo com categorias, gastos e orçamento. Guarde no seu computador ou Drive. Para restaurar, ou passar para outro aparelho, importe o arquivo aqui.</p>
+    <p class="need">Baixe um arquivo com categorias, gastos, contas da casa e orçamento. Guarde no seu computador ou Drive. Para restaurar, ou passar para outro aparelho, importe o arquivo aqui.</p>
     <button type="button" class="primary" id="bkDown">Baixar backup (.json)</button>
     <div class="field"><label for="bkFile">Importar backup</label>
       <input type="file" id="bkFile" class="sr" accept=".json,application/json">
@@ -680,7 +759,11 @@ function abrirBackup(){
         const { id, _t, ...resto } = x;
         if (await salvar(c, String(id), resto)) n++;
       }
-      if (d.config && num(d.config.orcamento) != null && num(S.config.orcamento) == null) await salvarConfig({ ...S.config, orcamento:num(d.config.orcamento) });
+      // orçamento e nomes: só entram se este aparelho ainda não tiver os dele
+      const cfg = {};
+      if (num(d.config?.orcamento) != null && num(S.config.orcamento) == null) cfg.orcamento = num(d.config.orcamento);
+      if (Array.isArray(d.config?.pessoas) && d.config.pessoas.length && !S.config.pessoas) cfg.pessoas = d.config.pessoas.map(String).slice(0, 8);
+      if (Object.keys(cfg).length) await salvarConfig({ ...S.config, ...cfg });
       marcarBackup(); render();
       $("#dlg").close(); toast(plural(n,"item importado","itens importados"));
     };
@@ -690,8 +773,8 @@ function abrirBackup(){
 }
 
 /* ---------- render e rotas ---------- */
-const TITULOS = { painel:"Painel", gastos:"Gastos", categorias:"Categorias" };
-const VIEWS = { painel:vPainel, gastos:vGastos, categorias:vCategorias };
+const TITULOS = { painel:"Painel", gastos:"Gastos", contas:"Contas da casa", categorias:"Categorias" };
+const VIEWS = { painel:vPainel, gastos:vGastos, contas:vContas, categorias:vCategorias };
 function rota(){ const h = location.hash.slice(1); return VIEWS[h] ? h : "painel"; }
 let renderPend = false;
 function render(){
@@ -712,12 +795,24 @@ $("#view").addEventListener("click", e => {
   else if (b.dataset.edit) abrirForm(b.dataset.edit, b.dataset.id);
   else if (b.dataset.acao==="cfg") abrirConfig();
   else if (b.dataset.acao==="backup") abrirBackup();
+  else if (b.dataset.acao==="pessoas") abrirPessoas();
+  else if (b.dataset.acao==="vercat"){ filtroCat = b.dataset.id; location.hash = "#gastos"; }
 });
 // no teclado, Enter ou espaço numa linha da lista faz o mesmo que o toque
 $("#view").addEventListener("keydown", e => {
   if ((e.key === "Enter" || e.key === " ") && e.target.matches('[role="button"]')){ e.preventDefault(); e.target.click(); }
 });
-$("#view").addEventListener("change", e => { if (e.target.id==="fCat"){ filtroCat = e.target.value; render(); } });
+$("#view").addEventListener("change", e => {
+  const t = e.target;
+  if (t.id==="fCat"){ filtroCat = t.value; render(); }
+  else if (t.dataset.chk){ // chaves da aba Contas: "Paguei a conta" e "Fulana me pagou"
+    const c = S.contas.find(x => x.id === t.dataset.id); if (!c) return;
+    const { id, _t, ...resto } = c;
+    if (t.dataset.chk === "paga") resto.paga = t.checked;
+    else { const rec = pessoas().map((_,i) => recebeu(c,i)); rec[+t.dataset.chk] = t.checked; resto.recebido = rec; }
+    salvar("contas", id, resto);
+  }
+});
 window.addEventListener("hashchange", () => { scrollTo(0, 0); render(); });
 $("#bkp").onclick = abrirBackup;
 

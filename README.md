@@ -16,7 +16,17 @@ Fora do claude.ai, os dados ficam salvos no navegador do aparelho em que você u
 2. Toque no **+** para anotar um gasto. O valor aceita `12,50`, `12.50` e `1.250,00`.
 3. No **Painel**, toque em **Orçamento** para definir quanto quer gastar no mês.
 
-As setas ao lado do nome do mês trocam o mês mostrado nas três abas.
+As setas ao lado do nome do mês trocam o mês mostrado em todas as abas.
+
+## Contas da casa
+
+A aba **Contas** é para quem divide as contas com outras pessoas.
+
+1. Toque em **Nomes** e coloque quem divide com você (por exemplo `Ana, Bia`). Você já entra na divisão.
+2. Toque no **+** para anotar uma conta (luz, internet, aluguel) com o valor total e o vencimento. O app mostra quanto fica para cada pessoa.
+3. Em cada conta, ligue **Paguei a conta** quando pagar e **Ana me pagou** quando receber.
+
+O quadro **Quem te deve** soma o que cada pessoa ainda deve em todos os meses. Ao editar uma conta, **Repetir no mês seguinte** cria a mesma conta para o mês que vem.
 
 ## Backup
 
