@@ -22,9 +22,18 @@ As setas ao lado do nome do mês trocam o mês mostrado em todas as abas.
 
 No fim do **Painel**, em **Entradas do mês**, anote o salário e outras rendas (**+ Entrada**). Com elas, o quadro **Sobrou no mês** mostra entradas menos gastos. Uma entrada pode ter **Repetir todo mês**.
 
+Tocando no quadro **Sobrou no mês**, dá para definir uma **meta de economia**: quanto você quer guardar por mês. O quadro passa a mostrar quanto falta, ou que a meta foi batida.
+
 ## Cartão de crédito
 
-No **Painel**, o quadro **Cartão de crédito** aparece quando existe gasto no crédito. Toque em **Definir** e diga o dia em que a fatura fecha. O app mostra a fatura aberta e a seguinte, somando as compras e parcelas de cada período.
+No **Painel**, o quadro **Cartão de crédito** aparece quando existe gasto no crédito. Toque em **Definir** e diga o nome do cartão e o dia em que a fatura fecha. O app mostra a fatura aberta e a seguinte, somando as compras e parcelas de cada período.
+
+Dá para cadastrar mais de um cartão (**+ Cartão**). Com dois ou mais, o gasto no crédito pergunta em qual cartão foi, e cada um mostra a sua fatura.
+
+## Painel do seu jeito
+
+- **Recolher quadros:** toque no título de um quadro do Painel (por exemplo "Gasto por dia") para recolher ou abrir. O app lembra a escolha naquele aparelho.
+- **Ver o ano:** no quadro "Últimos 6 meses", abre uma tabela com o gasto de cada categoria mês a mês, mais as entradas e quanto sobrou.
 
 ## Contas da casa
 
@@ -37,6 +46,7 @@ A aba **Contas** é para quem paga as contas da casa e divide com outras pessoas
 - **Quem te deve** soma o que cada pessoa ainda deve em todos os meses. O botão **Cobrar** monta a mensagem pronta para mandar.
 - Quando você liga **Paguei a conta**, a sua parte entra no Painel como gasto, na categoria **Casa**.
 - **Repetir todo mês** faz a conta aparecer sozinha quando o mês vira.
+- **Recebi tudo:** em "Quem te deve", marca de uma vez que a pessoa pagou todas as contas em aberto. Tem Desfazer.
 - **Partes diferentes:** no formulário da conta, escreva o valor de quem paga outro tanto. O resto é dividido igualmente entre quem ficou em "igual" e você.
 - **Lembretes:** um aviso no topo do app mostra as contas que vencem hoje, amanhã ou estão atrasadas. No botão **Lembretes** dá para baixar um arquivo para a agenda do celular (avisa na véspera, mesmo com o app fechado) e ligar uma notificação diária.
 
