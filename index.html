@@ -246,6 +246,21 @@ textarea{height:auto;min-height:120px;resize:vertical;font-size:.94rem}
 .chave input[type=checkbox]:checked{background:var(--m-ok)}
 .chave input[type=checkbox]:checked::after{transform:translateX(20px)}
 .conta{margin-bottom:12px}
+/* título de quadro do Painel que recolhe e abre com um toque */
+button.dobra{background:none;padding:0;color:var(--fg);font:inherit;letter-spacing:inherit;display:inline-flex;align-items:center;gap:8px;border-radius:8px;text-align:left}
+button.dobra:hover{background:none}
+.dobra span{color:var(--ink);font-weight:400;display:inline-block;transform:rotate(90deg)}
+.dobra[aria-expanded="false"] span{transform:none}
+/* resumo do ano: tabela de categoria por mês, que rola para o lado dentro da janela */
+dialog.largo{width:min(980px,calc(100vw - 32px))}
+.tbl-wrap{overflow-x:auto}
+.ano{border-collapse:collapse;font-size:.84rem;font-variant-numeric:tabular-nums;white-space:nowrap;width:100%}
+.ano th,.ano td{padding:7px 8px;text-align:right;border-bottom:.5px solid var(--line);font-weight:400}
+.ano th:first-child{text-align:left;position:sticky;left:0;background:var(--folha);max-width:36vw;overflow:hidden;text-overflow:ellipsis}
+.ano thead th{color:var(--muted);font-weight:500}
+.ano thead th.sel{color:var(--accent);font-weight:700}
+.ano td:last-child,.ano tfoot th,.ano tfoot td{font-weight:700}
+.ano tfoot tr:last-child>*{border-bottom:0}
 /* valor opcional da parte de cada pessoa, no formulário da conta */
 .pes input:not([type=checkbox]){width:104px;flex:none;background:var(--fill);text-align:right}
 /* atalhos para repetir os gastos mais comuns */
@@ -706,12 +721,18 @@ function resumoCat(id, m){
   return { total, lim, resta: lim ? lim - total : null };
 }
 // Fatura do cartão: soma os gastos no crédito entre um fechamento e o outro. O dia de fechamento fica em S.config.fechamento.
+// Cartões de crédito: S.config.cartoes = [{id, nome, fechamento}]. Quem só informou o dia (S.config.fechamento, formato antigo) tem um cartão só, de código vazio.
+const meusCartoes = () => { const l = (Array.isArray(S.config.cartoes) ? S.config.cartoes : []).filter(c => c && +c.fechamento >= 1 && +c.fechamento <= 31);
+  if (l.length) return l; const f = +S.config.fechamento; return f >= 1 && f <= 31 ? [{ id:"", nome:"Cartão", fechamento:f }] : []; };
+// de qual cartão é um gasto no crédito: o marcado nele ou, se não tiver (ou o cartão foi removido), o primeiro
+const cartaoDe = g => { const l = meusCartoes(); return (l.find(c => c.id === (g.cartaoId || "")) || l[0])?.id; };
+// Fatura de cada cartão: soma os gastos no crédito entre um fechamento e o outro.
 function faturas(){
-  const f = +S.config.fechamento; if (!(f >= 1 && f <= 31)) return null;
-  const h = hojeISO(), dia = m => m + "-" + String(Math.min(f, diasNoMes(m))).padStart(2,"0");
-  const fim = h <= dia(mesAtual()) ? dia(mesAtual()) : dia(mesMais(mesAtual(), 1)), mf = fim.slice(0,7), ini = dia(mesMais(mf, -1)), prox = dia(mesMais(mf, 1));
-  const cred = S.gastos.filter(g => g.pagamento === "credito" && dataValida(g.data));
-  return { fim, aberta: soma(cred.filter(g => g.data > ini && g.data <= fim)), proxima: soma(cred.filter(g => g.data > fim && g.data <= prox)) };
+  const h = hojeISO(), cred = S.gastos.filter(g => g.pagamento === "credito" && dataValida(g.data));
+  return meusCartoes().map(c => { const f = +c.fechamento, dia = m => m + "-" + String(Math.min(f, diasNoMes(m))).padStart(2,"0");
+    const fim = h <= dia(mesAtual()) ? dia(mesAtual()) : dia(mesMais(mesAtual(), 1)), mf = fim.slice(0,7), ini = dia(mesMais(mf, -1)), prox = dia(mesMais(mf, 1));
+    const meus = cred.filter(g => cartaoDe(g) === c.id);
+    return { ...c, fim, aberta: soma(meus.filter(g => g.data > ini && g.data <= fim)), proxima: soma(meus.filter(g => g.data > fim && g.data <= prox)) }; });
 }
 // cor da barra do limite: verde, amarelo a partir de 80% e vermelho quando chega no limite
 function corBudget(total, lim){
@@ -765,9 +786,15 @@ function barraMes(novo, rotulo){
 const editavel = (col, id) => `data-edit="${col}" data-id="${esc(id)}" role="button" tabindex="0"`;
 const linhaGasto = (g, comData) => `<div class="row" ${editavel(g.daConta ? "contas" : "gastos", g.id)}><span class="dot" style="background:${corDe(g.categoriaId)}"></span>
   <div class="grow"><div class="t">${esc(g.descricao)}</div>
-    <div class="m">${esc(nomeDe(g.categoriaId))}${comData?" · "+fmtData(g.data):""}${g.pagamento?" · "+esc(rotPag(g.pagamento)):""}${g.daConta?" · sua parte da conta":""}${g.fixa?" · todo mês":""}${g.ofx?" · ✓ extrato":""}</div></div>
+    <div class="m">${esc(nomeDe(g.categoriaId))}${comData?" · "+fmtData(g.data):""}${g.pagamento?" · "+esc(rotPag(g.pagamento)):""}${g.pagamento==="credito" && meusCartoes().length > 1?" ("+esc(meusCartoes().find(c => c.id === cartaoDe(g))?.nome || "")+")":""}${g.daConta?" · sua parte da conta":""}${g.fixa?" · todo mês":""}${g.ofx?" · ✓ extrato":""}</div></div>
   <span class="val">${brl(num(g.valor))}</span></div>`;
 const maisNovos = (a,b) => (b.data||"").localeCompare(a.data||"") || (b._t||0) - (a._t||0);
+
+// Painel: cada quadro pode ser recolhido com um toque no título. A escolha fica só neste aparelho.
+const LS_PAINEL = "meus-gastos-painel";
+let recolhidos = []; try { const r = JSON.parse(localStorage.getItem(LS_PAINEL)); if (Array.isArray(r)) recolhidos = r; } catch(e){}
+const secao = (id, nome, extra, conteudo) => { const f = recolhidos.includes(id);
+  return `<section class="sec"><div class="bar"><h3><button class="dobra" data-dobra="${id}" aria-expanded="${!f}">${nome}<span aria-hidden="true">›</span></button></h3>${f ? "" : extra}</div>${f ? "" : `<div class="grupo">${conteudo}</div>`}</section>`; };
 
 // Quadro que aparece enquanto o app está vazio e some depois que existe uma categoria e um gasto.
 function primeirosPassos(){
@@ -797,6 +824,7 @@ function vPainel(){
     comp = d === 0 ? `Igual a ${mesNome(mAnt)}` : `${Math.abs(d)}% a ${d > 0 ? "mais" : "menos"} que ${mesNome(mAnt)} (${brl0(ant)})`; }
 
   const entradas = S.receitas.filter(r => (r.data||"").startsWith(mes)).sort(maisNovos), entrou = soma(entradas), sobrou = entrou - total;
+  const metaMes = num(S.config.meta);
   const fat = faturas(), temCredito = S.gastos.some(g => g.pagamento === "credito");
   const widgets = `<div class="wg quatro">
     <div class="w tinta"><span class="k">${ICO.carteira}Gasto no mês</span><span class="gr">${brl(total)}</span><span class="p">${comp}</span></div>
@@ -805,8 +833,10 @@ function vPainel(){
             : `<span class="gr">—</span><span class="p">Toque para definir quanto quer gastar no mês</span>`}</button>
     <div class="w"><span class="k">${ICO.media}Média por dia</span><span class="gr">${media!=null?brl(media):"—"}</span>
       <span class="p">${proj!=null?`Nesse ritmo, o mês fecha em ${brl0(proj)}`:plural(lista.length,"lançamento","lançamentos")}</span></div>
-    <div class="w larga"><span class="k">${ICO.saldo}${sobrou<0?"Faltou no mês":"Sobrou no mês"}</span><span class="gr ${sobrou<0?"bad":""}">${entradas.length?brl(Math.abs(sobrou)):"—"}</span>
-      <span class="p">${entradas.length?`Entrou ${brl(entrou)}`:"Anote suas entradas, abaixo, para ver quanto sobra"}</span></div>
+    <button class="w larga" data-acao="meta"><span class="k">${ICO.saldo}${sobrou<0?"Faltou no mês":"Sobrou no mês"}<span class="ir" aria-hidden="true">›</span></span><span class="gr ${sobrou<0?"bad":""}">${entradas.length?brl(Math.abs(sobrou)):"—"}</span>
+      ${entradas.length && metaMes?`<span class="meter" style="display:block"><i style="width:${Math.max(0, Math.min(100, sobrou / metaMes * 100))}%;background:${sobrou>=metaMes?"var(--m-ok)":"var(--accent-fill)"}"></i></span>`:""}
+      <span class="p">${!entradas.length?"Anote suas entradas, abaixo, para ver quanto sobra":!metaMes?`Entrou ${brl(entrou)} · toque para definir uma meta`
+        :sobrou>=metaMes?`Meta de guardar ${brl0(metaMes)} batida`:`Faltam ${brl0(metaMes - sobrou)} para a meta de guardar ${brl0(metaMes)}`}</span></button>
   </div>`;
 
   const cats = S.categorias.map(c => ({c, ...resumoCat(c.id, mes)})).filter(x => x.total || x.lim);
@@ -832,30 +862,24 @@ function vPainel(){
   ${widgets}
   <div class="grid2">
     <div class="col">
-      <section class="sec"><div class="bar"><h3>Por categoria</h3></div>
-        <div class="grupo">${linhasCat?`<div class="list">${linhasCat}</div>`
-          :S.categorias.length?'<p class="empty">Nenhum gasto neste mês.</p>':'<p class="empty">Crie suas categorias primeiro, na aba Categorias.</p>'}</div>
-      </section>
-      ${porPag.length?`<section class="sec"><div class="bar"><h3>Por forma de pagamento</h3></div>
-        <div class="grupo"><div class="list">${porPag.map(x => `<div class="row"><div class="grow"><div class="t">${x.nome}</div><div class="m">${Math.round(x.t/total*100)}% do mês</div></div><span class="val">${brl(x.t)}</span></div>`).join("")}</div></div></section>`:""}
-      ${fat || temCredito?`<section class="sec"><div class="bar"><h3>Cartão de crédito</h3><button class="ghost" data-acao="cartao">${fat?"Ajustar":"Definir"}</button></div>
-        <div class="grupo">${fat?`<div class="list"><div class="row"><div class="grow"><div class="t">Fatura aberta</div><div class="m">Fecha em ${fmtData(fat.fim)}</div></div><span class="val">${brl(fat.aberta)}</span></div>
-          <div class="row"><div class="grow"><div class="t">Fatura seguinte</div><div class="m">Compras e parcelas depois do fechamento</div></div><span class="val">${brl(fat.proxima)}</span></div></div>`
-          :'<p class="empty">Diga o dia em que a fatura fecha para ver quanto vem na próxima.</p>'}</div></section>`:""}
-      <section class="sec"><div class="bar"><h3>Últimos 6 meses</h3></div>
-        <div class="grupo"><div class="meses6" role="img" aria-label="Gasto em cada um dos últimos 6 meses">${seis.map(x => `<div class="${x.m===mes?"sel":""}"><span>${x.t?curto(x.t):"—"}</span><i style="height:${Math.round(x.t/max6*84)}px"></i><span>${mesData(x.m).toLocaleDateString("pt-BR",{month:"short"}).replace(".","")}</span></div>`).join("")}</div></div></section>
+      ${secao("cat", "Por categoria", "", linhasCat?`<div class="list">${linhasCat}</div>`
+        :S.categorias.length?'<p class="empty">Nenhum gasto neste mês.</p>':'<p class="empty">Crie suas categorias primeiro, na aba Categorias.</p>')}
+      ${porPag.length?secao("pag", "Por forma de pagamento", "", `<div class="list">${porPag.map(x => `<div class="row"><div class="grow"><div class="t">${x.nome}</div><div class="m">${Math.round(x.t/total*100)}% do mês</div></div><span class="val">${brl(x.t)}</span></div>`).join("")}</div>`):""}
+      ${fat.length || temCredito?secao("cartao", fat.length > 1 ? "Cartões de crédito" : "Cartão de crédito", `<button class="ghost" data-acao="cartao">${fat.length?"Ajustar":"Definir"}</button>`,
+        fat.length === 1?`<div class="list"><div class="row"><div class="grow"><div class="t">Fatura aberta</div><div class="m">Fecha em ${fmtData(fat[0].fim)}</div></div><span class="val">${brl(fat[0].aberta)}</span></div>
+          <div class="row"><div class="grow"><div class="t">Fatura seguinte</div><div class="m">Compras e parcelas depois do fechamento</div></div><span class="val">${brl(fat[0].proxima)}</span></div></div>`
+        :fat.length?`<div class="list">${fat.map(c => `<div class="row"><div class="grow"><div class="t">${esc(c.nome)}</div><div class="m">Fatura aberta, fecha em ${fmtData(c.fim)} · seguinte ${brl(c.proxima)}</div></div><span class="val">${brl(c.aberta)}</span></div>`).join("")}</div>`
+        :'<p class="empty">Diga o dia em que a fatura fecha para ver quanto vem na próxima.</p>'):""}
+      ${secao("seis", "Últimos 6 meses", '<button class="ghost" data-acao="ano">Ver o ano</button>', `<div class="meses6" role="img" aria-label="Gasto em cada um dos últimos 6 meses">${seis.map(x => `<div class="${x.m===mes?"sel":""}"><span>${x.t?curto(x.t):"—"}</span><i style="height:${Math.round(x.t/max6*84)}px"></i><span>${mesData(x.m).toLocaleDateString("pt-BR",{month:"short"}).replace(".","")}</span></div>`).join("")}</div>`)}
     </div>
     <div class="col">
-      <section class="sec"><div class="bar"><h3>Gasto por dia</h3></div>
-        <div class="grupo"><div class="barras" role="img" aria-label="Gasto por dia em ${esc(mesLabel(mes))}">${barras}</div>
+      ${secao("dia", "Gasto por dia", "", `<div class="barras" role="img" aria-label="Gasto por dia em ${esc(mesLabel(mes))}">${barras}</div>
           <div class="eixo"><span>1</span><span>${Math.round(nd/2)}</span><span>${nd}</span></div>
-          <p class="need">${max>0?`Dia mais caro: ${iMax+1}, com <b class="num">${brl(max)}</b>`:"Nada lançado neste mês."}</p></div></section>
-      <section class="sec"><div class="bar"><h3>Últimos gastos</h3><a href="#gastos">Ver todos</a></div>
-        <div class="grupo">${ultimos.length?`<div class="list">${ultimos.map(g => linhaGasto(g, true)).join("")}</div>`:'<p class="empty">Nada lançado neste mês.</p>'}</div></section>
-      <section class="sec"><div class="bar"><h3>Entradas do mês</h3><button class="ghost" data-novo="receitas">+ Entrada</button></div>
-        <div class="grupo">${entradas.length?`<div class="list">${entradas.map(r => `<div class="row" ${editavel("receitas", r.id)}><div class="grow"><div class="t">${esc(r.descricao)}</div>
+          <p class="need">${max>0?`Dia mais caro: ${iMax+1}, com <b class="num">${brl(max)}</b>`:"Nada lançado neste mês."}</p>`)}
+      ${secao("ult", "Últimos gastos", '<a href="#gastos">Ver todos</a>', ultimos.length?`<div class="list">${ultimos.map(g => linhaGasto(g, true)).join("")}</div>`:'<p class="empty">Nada lançado neste mês.</p>')}
+      ${secao("ent", "Entradas do mês", '<button class="ghost" data-novo="receitas">+ Entrada</button>', entradas.length?`<div class="list">${entradas.map(r => `<div class="row" ${editavel("receitas", r.id)}><div class="grow"><div class="t">${esc(r.descricao)}</div>
           <div class="m">${fmtData(r.data)}${r.fixa?" · todo mês":""}${r.ofx?" · ✓ extrato":""}</div></div><span class="val">${brl(num(r.valor))}</span></div>`).join("")}</div>`
-          :'<p class="empty">Salário e outras entradas. Com elas o Painel mostra quanto sobrou.</p>'}</div></section>
+          :'<p class="empty">Salário e outras entradas. Com elas o Painel mostra quanto sobrou.</p>')}
     </div>
   </div>`;
 }
@@ -915,12 +939,19 @@ function vContas(){
       ${cartoes || '<div class="grupo"><p class="empty">Nenhuma conta com vencimento neste mês. Toque no + para anotar a primeira.</p></div>'}</section>
     <section class="sec"><div class="bar"><h3>Quem te deve</h3><button class="ghost" data-acao="pessoas">Ajustes</button></div>
       <div class="grupo"><div class="list">${deve.map(d => `<div class="row"><div class="grow"><div class="t">${esc(d.nome)}</div>
-        <div class="m">${d.qtd?plural(d.qtd,"conta em aberto","contas em aberto")+" · "+brl(d.total):"Tudo acertado"}</div></div>${d.qtd?`<button data-acao="cobrar" data-i="${d.i}">Cobrar</button>`:'<span class="val">'+brl(0)+'</span>'}</div>`).join("")}</div></div>
+        <div class="m">${d.qtd?plural(d.qtd,"conta em aberto","contas em aberto"):"Tudo acertado"}</div>
+        ${d.qtd?`<div class="filter" style="margin-top:8px"><button data-acao="cobrar" data-i="${d.i}">Cobrar</button><button data-acao="recebi" data-i="${d.i}">Recebi tudo</button></div>`:""}</div><span class="val">${brl(d.total)}</span></div>`).join("")}</div></div>
       <p class="need" style="margin:8px 4px 0">Soma todos os meses. Quando você liga "Paguei a conta", a sua parte entra no Painel como gasto.</p></section>
   </div>`;
 }
 // contas em que a pessoa entra e ainda não pagou a parte dela, das mais antigas para as mais novas
 const devendo = i => S.contas.filter(c => dentro(c,i) && !recebeu(c,i)).sort((a,b) => (a.data||"").localeCompare(b.data||""));
+// "Recebi tudo": marca de uma vez que a pessoa pagou todas as contas em aberto, com Desfazer
+async function receberTudo(i){
+  const nome = pessoas()[i], pend = devendo(i), antes = pend.map(c => ({ ...c })); if (!pend.length) return;
+  for (const c of pend){ const { id, _t, ...r } = c, rec = pessoas().map((_,k) => recebeu(c,k)); rec[i] = true; await salvar("contas", id, { ...r, recebido:rec }); }
+  toast(`${nome} pagou ${plural(pend.length, "conta", "contas")}`, "Desfazer", async () => { for (const { id, _t, ...r } of antes) await salvar("contas", id, r); });
+}
 // monta a mensagem de cobrança e abre o compartilhar do celular (ou copia, no computador)
 async function cobrar(i){
   const nome = pessoas()[i], pend = devendo(i); if (!pend.length) return;
@@ -978,6 +1009,7 @@ const FORMS = {
     {k:"descricao",l:"Descrição",t:"text",req:1,ph:"Ex.: Almoço, Uber, Netflix"},
     {duo:[{k:"valor",l:"Valor (R$)",t:"num",ph:"0,00"},{k:"data",l:"Data",t:"date",def:hojeISO}]},
     {duo:[{k:"categoriaId",l:"Categoria",t:"select",opts:optCats},{k:"pagamento",l:"Pagamento",t:"select",opts:PAGAMENTOS,def:"pix"}]},
+    {k:"cartaoId",l:"Cartão",t:"select",opts:() => meusCartoes().map(c => [c.id, c.nome]),soCartoes:1},
     {k:"parcelas",l:"Parcelas",t:"int",def:1,soNovo:1,hint:"Em mais de 1 vez, o valor é dividido e cada parcela cai num mês."}, FIXA ]},
 };
 
@@ -1013,7 +1045,7 @@ function abrirForm(col, id, preset={}){
   if (col==="gastos" && !S.categorias.length){ toast("Crie uma categoria primeiro."); location.hash="#categorias"; return; }
   const dados = { ...preset, ...(item||{}) };
   // campos marcados com soNovo só aparecem ao criar (ex.: parcelas)
-  const lista = F.campos.filter(c => !(c.soNovo && id)), todos = lista.flatMap(c => c.duo || [c]);
+  const lista = F.campos.filter(c => !(c.soNovo && id) && !(c.soCartoes && meusCartoes().length < 2)), todos = lista.flatMap(c => c.duo || [c]);
   const campos = lista.map(c => c.duo ? `<div class="duo">${c.duo.map(d=>campoHTML(d,dados[d.k],dados)).join("")}</div>` : campoHTML(c, dados[c.k], dados)).join("");
   // parcelas da mesma compra (têm o mesmo "grupo")
   const irmas = item?.grupo ? S[col].filter(x => x.grupo === item.grupo) : [];
@@ -1024,6 +1056,8 @@ function abrirForm(col, id, preset={}){
     <div class="actions">${id?`<div class="r"><button type="button" class="danger" id="del">Excluir</button>${col==="gastos"?'<button type="button" id="dup">Duplicar</button>':col==="contas"?'<button type="button" id="dup">Repetir no mês seguinte</button>':""}${irmas.length > 1?`<button type="button" class="danger" id="delTodas">Excluir as ${irmas.length} parcelas</button>`:""}</div>`:"<span></span>"}
       <div class="r"><button type="button" id="cancel">Cancelar</button><button type="submit" class="primary">Salvar</button></div></div>`;
   frm.noValidate = true;
+  // o campo Cartão só aparece quando o pagamento é crédito
+  { const fc = $("#f_cartaoId")?.closest(".field"), fp = $("#f_pagamento"); if (fc && fp){ const ver = () => fc.hidden = fp.value !== "credito"; fp.onchange = ver; ver(); } }
   frm.onsubmit = async e => {
     e.preventDefault();
     const fd = new FormData(frm), out = {}, raw = {}; let erroPartes = null;
@@ -1102,17 +1136,64 @@ function abrirConfig(){
 
 function abrirCartao(){
   const frm = $("#frm");
-  frm.innerHTML = `<h2>Cartão de crédito</h2>
-    <div class="field"><label for="c_fech">Dia em que a fatura fecha</label><input id="c_fech" inputmode="numeric" autocomplete="off" value="${esc(S.config.fechamento || "")}" placeholder="Ex.: 25"><span class="need">Está no app do cartão, como "fechamento" ou "melhor dia de compra" (que é o dia seguinte). Deixe vazio para não usar.</span></div>
+  const linha = c => `<div class="duo" data-cartao="${esc(c.id)}"><div class="field"><input name="cn" autocomplete="off" aria-label="Nome do cartão" placeholder="Nome (ex.: Nubank)" value="${esc(c.nome || "")}"></div>
+    <div class="field"><input name="cf" inputmode="numeric" autocomplete="off" aria-label="Dia em que a fatura fecha" placeholder="Dia que fecha" value="${esc(c.fechamento || "")}"></div></div>`;
+  const atuais = meusCartoes();
+  frm.innerHTML = `<h2 tabindex="-1" autofocus>Cartões de crédito</h2>
+    <p class="need">Para cada cartão, o nome e o dia em que a fatura fecha. O dia está no app do cartão, como "fechamento" ou "melhor dia de compra" (que é o dia seguinte).</p>
+    <div id="c_lista" style="display:flex;flex-direction:column;gap:10px">${(atuais.length ? atuais : [{ id:"", nome:"", fechamento:"" }]).map(linha).join("")}</div>
+    <button type="button" id="c_mais">+ Cartão</button>
+    <p class="need">Para tirar um cartão, apague o dia dele. Com mais de um cartão, o gasto no crédito pergunta em qual foi.</p>
     <p class="erro" id="erro" role="alert" hidden></p>
     <div class="actions"><span></span><div class="r"><button type="button" id="cancel">Cancelar</button><button class="primary" type="submit">Salvar</button></div></div>`;
+  $("#c_mais").onclick = () => { $("#c_lista").insertAdjacentHTML("beforeend", linha({ id:uid(), nome:"", fechamento:"" })); $("#c_lista").lastElementChild.querySelector("input").focus(); };
   frm.onsubmit = async e => { e.preventDefault();
-    const raw = $("#c_fech").value.trim(), v = raw === "" ? null : /^\d{1,2}$/.test(raw) ? +raw : NaN;
-    if (v !== null && !(v >= 1 && v <= 31)){ mostrarErro("c_fech", "Use um dia de 1 a 31."); return; }
-    await salvarConfig({ ...S.config, fechamento: v });
+    const lista = [];
+    for (const l of frm.querySelectorAll("[data-cartao]")){ const nome = l.querySelector('[name="cn"]').value.trim(), raw = l.querySelector('[name="cf"]').value.trim();
+      if (raw === "") continue; // sem dia = cartão removido
+      if (!/^\d{1,2}$/.test(raw) || +raw < 1 || +raw > 31){ $("#erro").textContent = "Use um dia de 1 a 31."; $("#erro").hidden = false; l.querySelector('[name="cf"]').focus(); return; }
+      lista.push({ id:l.dataset.cartao, nome: nome || "Cartão " + (lista.length + 1), fechamento:+raw }); }
+    await salvarConfig({ ...S.config, cartoes: lista, fechamento: null });
     $("#dlg").close(); toast("Salvo"); };
   $("#cancel").onclick = () => $("#dlg").close();
   $("#dlg").showModal();
+}
+function abrirMeta(){
+  const frm = $("#frm");
+  frm.innerHTML = `<h2>Meta de economia</h2>
+    <div class="field"><label for="c_meta">Quanto você quer guardar por mês (R$)</label><input id="c_meta" inputmode="decimal" autocomplete="off" value="${esc(paraCampo(S.config.meta))}" placeholder="Ex.: 500,00"><span class="need">O Painel compara com o que sobrou no mês (entradas menos gastos). Deixe vazio para não usar meta.</span></div>
+    <p class="erro" id="erro" role="alert" hidden></p>
+    <div class="actions"><span></span><div class="r"><button type="button" id="cancel">Cancelar</button><button class="primary" type="submit">Salvar</button></div></div>`;
+  frm.onsubmit = async e => { e.preventDefault();
+    const raw = $("#c_meta").value, v = num(raw);
+    if (raw.trim() !== "" && (v == null || v <= 0)){ mostrarErro("c_meta", "Use só números, maior que zero."); return; }
+    await salvarConfig({ ...S.config, meta: v });
+    $("#dlg").close(); toast("Salvo"); };
+  $("#cancel").onclick = () => $("#dlg").close();
+  $("#dlg").showModal();
+}
+// Resumo do ano: quanto foi gasto em cada categoria, mês a mês. A cor de fundo é mais forte nos meses em que a categoria pesou mais.
+function abrirAno(ano = mes.slice(0,4)){
+  const ms = Array.from({ length:12 }, (_,i) => ano + "-" + String(i+1).padStart(2,"0")), doAno = todosGastos().filter(g => (g.data || "").startsWith(ano));
+  const linhas = [...S.categorias.map(c => ({ nome:c.nome, cor:corOk(c.cor), id:c.id })), { nome:"Sem categoria", cor:"#8e8e93", id:null }]
+    .map(l => ({ ...l, v: ms.map(m => soma(doAno.filter(g => g.data.startsWith(m) && (l.id ? g.categoriaId === l.id : !cat(g.categoriaId))))) })).filter(l => l.v.some(x => x));
+  const tot = ms.map((_,i) => linhas.reduce((a,l) => a + l.v[i], 0)), rec = ms.map(m => soma(S.receitas.filter(r => (r.data || "").startsWith(m))));
+  const n = v => v ? Math.round(v).toLocaleString("pt-BR") : "–", som = v => v.reduce((a,x) => a + x, 0);
+  const cab = ms.map(m => `<th class="${m === mesAtual() ? "sel" : ""}">${mesData(m).toLocaleDateString("pt-BR",{month:"short"}).replace(".","")}</th>`).join("");
+  const frm = $("#frm");
+  frm.innerHTML = `<div class="mesnav"><button type="button" class="topo-btn seta" id="a_menos" aria-label="Ano anterior">‹</button><h2 tabindex="-1" autofocus>${ano}</h2><button type="button" class="topo-btn seta" id="a_mais" aria-label="Próximo ano">›</button></div>
+    ${linhas.length ? `<div class="tbl-wrap"><table class="ano"><thead><tr><th>Categoria</th>${cab}<th>Total</th></tr></thead>
+      <tbody>${linhas.map(l => { const mx = Math.max(...l.v); return `<tr><th><span class="dot" style="background:${l.cor}"></span> ${esc(l.nome)}</th>${l.v.map(v => `<td style="background:color-mix(in srgb,var(--accent-fill) ${Math.round(v / mx * 30)}%,transparent)">${n(v)}</td>`).join("")}<td>${n(som(l.v))}</td></tr>`; }).join("")}</tbody>
+      <tfoot><tr><th>Gastos</th>${tot.map(v => `<td>${n(v)}</td>`).join("")}<td>${n(som(tot))}</td></tr>
+        ${rec.some(x => x) ? `<tr><th>Entradas</th>${rec.map(v => `<td>${n(v)}</td>`).join("")}<td>${n(som(rec))}</td></tr>
+        <tr><th>Sobrou</th>${rec.map((v,i) => `<td>${v || tot[i] ? Math.round(v - tot[i]).toLocaleString("pt-BR") : "–"}</td>`).join("")}<td>${Math.round(som(rec) - som(tot)).toLocaleString("pt-BR")}</td></tr>` : ""}</tfoot></table></div>
+      <p class="need">Valores em reais, sem centavos. Arraste a tabela para o lado para ver todos os meses.</p>` : `<p class="empty">Nenhum gasto em ${ano}.</p>`}
+    <div class="actions"><span></span><div class="r"><button type="button" id="cancel">Fechar</button></div></div>`;
+  frm.onsubmit = e => e.preventDefault();
+  $("#cancel").onclick = () => $("#dlg").close();
+  $("#a_menos").onclick = () => abrirAno(String(+ano - 1)); $("#a_mais").onclick = () => abrirAno(String(+ano + 1));
+  $("#dlg").classList.add("largo");
+  if (!$("#dlg").open) $("#dlg").showModal();
 }
 function abrirPessoas(){
   const frm = $("#frm");
@@ -1467,7 +1548,9 @@ function render(){
 }
 
 $("#view").addEventListener("click", e => {
-  const b = e.target.closest("[data-mes],[data-novo],[data-edit],[data-acao],[data-fav]"); if (!b) return;
+  const b = e.target.closest("[data-mes],[data-novo],[data-edit],[data-acao],[data-fav],[data-dobra]"); if (!b) return;
+  if (b.dataset.dobra){ const id = b.dataset.dobra; recolhidos = recolhidos.includes(id) ? recolhidos.filter(x => x !== id) : [...recolhidos, id];
+    try { localStorage.setItem(LS_PAINEL, JSON.stringify(recolhidos)); } catch(e){} render(); return; }
   if (b.dataset.mes != null){ const n = +b.dataset.mes; mes = n ? mesMais(mes, n) : mesAtual(); render(); }
   else if (b.dataset.novo) abrirForm(b.dataset.novo, null, b.dataset.novo==="gastos" && filtroCat && rota()==="gastos" ? { categoriaId:filtroCat } : {});
   else if (b.dataset.edit) abrirForm(b.dataset.edit, b.dataset.id);
@@ -1477,6 +1560,9 @@ $("#view").addEventListener("click", e => {
   else if (b.dataset.acao==="cobrar") cobrar(+b.dataset.i);
   else if (b.dataset.acao==="ofx") pedirOFX();
   else if (b.dataset.acao==="cartao") abrirCartao();
+  else if (b.dataset.acao==="meta") abrirMeta();
+  else if (b.dataset.acao==="ano") abrirAno();
+  else if (b.dataset.acao==="recebi") receberTudo(+b.dataset.i);
   else if (b.dataset.acao==="lembretes") abrirLembretes();
   else if (b.dataset.fav){ // repetir um gasto comum com a data de hoje
     const g = S.gastos.find(x => x.id === b.dataset.fav); if (!g) return;
@@ -1504,6 +1590,7 @@ $("#view").addEventListener("change", e => {
 });
 window.addEventListener("hashchange", () => { scrollTo(0, 0); render(); });
 $("#bkp").onclick = abrirBackup;
+$("#dlg").addEventListener("close", () => $("#dlg").classList.remove("largo")); // só o resumo do ano usa a janela larga
 $("#sinc").onclick = botaoSinc;
 $("#buscar").onclick = abrirBusca;
 // atalho "/" ou Ctrl+K no computador abre a busca
