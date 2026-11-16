@@ -25,6 +25,10 @@ O `index.html` já segue o padrão do `meu-semestre-site`. Ao mexer, manter:
 - **Visual:** padrão dos apps do iPhone. Título grande da aba, listas agrupadas em quadros brancos sobre fundo cinza claro (preto no modo escuro), barra de abas embaixo no celular e pílula no topo em telas largas. A cor do app é escolhida pela pessoa no botão Aparência (azul claro do iPhone 14 por padrão, ou bordô), guardada só no aparelho. Fontes do próprio sistema, sem Google Fonts.
 - **Arquivos na mesma pasta do `index.html`:** `manifest.webmanifest`, `sw.js` e os ícones `icon-192.png`, `icon-512.png` e `apple-touch-icon.png` (modo aplicativo, funciona sem internet). Ao mudar `sw.js` ou os ícones, aumentar a `VERSAO` dentro do `sw.js`. Os ícones daqui precisam ser novos, não os do semestre.
 - **Dados:** `localStorage` do navegador fora do claude.ai. Todo item salvo ganha `_t` (hora da mudança) e todo item apagado vai para `S.apagados`. Backup em `.json` (baixar e importar). Sincronização com o Google Drive é opcional e igual à do semestre; nunca gravar Client ID, chave ou senha no código.
+- **Ajustes (`S.config`):** `_ts` guarda a hora de cada ajuste, e `juntarConfig()` junta ajuste por ajuste. Sempre gravar por `salvarConfig()`, nunca direto em `S.config`.
+- **Importar backup:** item daqui mais novo que o do arquivo fica; ajustes só entram se faltam aqui.
+- **Nomes de quem divide:** as contas guardam `recebido`, `partes` e `fora` pela posição do nome. Ao mudar a lista, `abrirPessoas` refaz essas posições para a marcação acompanhar a pessoa. Qualquer mudança nisso precisa manter essa regra.
+- Se uma tela der erro ao desenhar, `render()` mostra um aviso com o botão de backup em vez de ficar em branco.
 - Tudo em `index.html`, sem etapa de build. Precisa funcionar hospedado e aberto direto no navegador, sem depender de servidor nem de IA.
 
 ## O que o app faz

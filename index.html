@@ -460,10 +460,15 @@ async function apagar(col, id){
     saveLocal(); render();
   }
 }
+// Ajustes (orçamento, nomes, cartões, meta...). "_ts" guarda a hora em que cada ajuste mudou, para a sincronização
+// juntar ajuste por ajuste: mudar a meta num aparelho e um cartão em outro não faz um apagar o outro.
 async function salvarConfig(c){
-  S.config = db ? c : { ...c, _t: Date.now() };
-  if (db) { try { await db.doc("config/geral").set(c); } catch(e){ toast("Não foi possível salvar."); } }
-  else { saveLocal(); render(); }
+  if (db) { S.config = c; try { await db.doc("config/geral").set(c); } catch(e){ toast("Não foi possível salvar."); } return; }
+  const agora = Date.now(), ant = S.config || {}, ts = { ...(ant._ts || {}) };
+  for (const k of new Set([...Object.keys(ant), ...Object.keys(c)]))
+    if (k !== "_t" && k !== "_ts" && JSON.stringify(ant[k]) !== JSON.stringify(c[k])) ts[k] = agora;
+  S.config = { ...c, _t: agora, _ts: ts };
+  saveLocal(); render();
 }
 
 async function iniciar(){
@@ -572,9 +577,19 @@ function juntar(local, remoto){
     for (const x of [...(remoto[c] || []), ...(local[c] || [])]){ const y = m.get(x.id); if (!y || (x._t || 0) >= (y._t || 0)) m.set(x.id, x); }
     out[c] = [...m.values()].filter(x => !(apagados[x.id] >= (x._t || 0)));
   }
-  out.config = (remoto.config?._t || 0) > (local.config?._t || 0) ? remoto.config : local.config;
+  out.config = juntarConfig(local.config, remoto.config);
   return out;
 }
+// ajustes: em cada um vale o que mudou por último (em empate, o deste aparelho). Ajuste sem hora própria usa a hora geral (_t).
+function juntarConfig(a, b){
+  if (!a || !b) return a || b || null;
+  const quando = (c, k) => (c._ts || {})[k] ?? c._t ?? 0, out = {}, ts = {};
+  for (const k of [...new Set([...Object.keys(a), ...Object.keys(b)])].filter(k => k !== "_t" && k !== "_ts").sort()){
+    const de = k in b && (!(k in a) || quando(b, k) > quando(a, k)) ? b : a;
+    out[k] = de[k]; ts[k] = quando(de, k); }
+  return { ...out, _t: Math.max(a._t || 0, b._t || 0), _ts: ts };
+}
+window.__meusGastosTeste = { juntar }; // usado só por testes/testar.js, para conferir a regra de juntar dois aparelhos
 function statusSinc(tipo, msg){
   const el = $("#status"); if (!el) return;
   el.textContent = tipo === "rodando" ? "Sincronizando…"
@@ -690,7 +705,7 @@ function gerarFixos(){
   for (const col of ["gastos","contas","receitas"]) for (let i = 0; i < S[col].length; i++){ // a lista cresce durante a volta: as cópias novas também são olhadas
     const x = S[col][i];
     if (!x.fixa || x.proxima || !dataValida(x.data) || x.data.slice(0,7) >= atual) continue;
-    const { id, _t, paga, pagaEm, recebido, proxima, ofx, grupo, ...resto } = x;
+    const { id, _t, paga, pagaEm, recebido, proxima, ofx, ofxRec, grupo, ...resto } = x;
     const serie = x.serie || x.id, dia = x.dia || +x.data.slice(8), m = mesMais(x.data.slice(0,7), 1), nid = serie + "-" + m;
     S[col][i] = { ...x, proxima:true, _t:Date.now() };
     if (!S[col].some(y => y.id === nid) && !(S.apagados || {})[nid])
@@ -1206,7 +1221,7 @@ function abrirAno(ano = mes.slice(0,4)){
 function abrirPessoas(){
   const frm = $("#frm");
   frm.innerHTML = `<h2>Ajustes das contas da casa</h2>
-    <div class="field"><label for="c_pes">Nomes de quem divide com você, separados por vírgula</label><input id="c_pes" autocomplete="off" value="${esc(pessoas().join(", "))}" placeholder="Ex.: Ana, Bia"><span class="need">Você já entra na divisão, não precisa colocar seu nome. Com 2 nomes, cada conta é dividida por 3.</span></div>
+    <div class="field"><label for="c_pes">Nomes de quem divide com você, separados por vírgula</label><input id="c_pes" autocomplete="off" value="${esc(pessoas().join(", "))}" placeholder="Ex.: Ana, Bia"><span class="need">Você já entra na divisão, não precisa colocar seu nome. Com 2 nomes, cada conta é dividida por 3. Quem entrar agora não entra nas contas já anotadas. Tirar um nome refaz a divisão das contas antigas entre quem ficou.</span></div>
     <div class="field"><label for="c_pix">Sua chave Pix (opcional)</label><input id="c_pix" autocomplete="off" value="${esc(S.config.pix || "")}" placeholder="Celular, e-mail ou chave aleatória"><span class="need">Entra no fim da mensagem do botão Cobrar. Fica só nos seus dados.</span></div>
     <div class="field"><label for="c_casa">Categoria da sua parte no Painel</label><select id="c_casa"><option value="">Casa (criada sozinha)</option>${S.categorias.map(c => `<option value="${esc(c.id)}" ${c.id===catCasa()?"selected":""}>${esc(c.nome)}</option>`).join("")}</select></div>
     <p class="erro" id="erro" role="alert" hidden></p>
@@ -1214,7 +1229,15 @@ function abrirPessoas(){
   frm.onsubmit = async e => { e.preventDefault();
     const nomes = $("#c_pes").value.split(",").map(x => x.trim()).filter(Boolean);
     if (!nomes.length || nomes.length > 8){ mostrarErro("c_pes", "Coloque de 1 a 8 nomes, separados por vírgula."); return; }
-    // as marcações de "me pagou" seguem a ordem dos nomes: para trocar um nome, mantenha a posição dele
+    // As contas guardam "me pagou", parte e quem divide pela posição do nome. Ao mudar a lista, cada marcação acompanha a pessoa:
+    // mesmo nome = mesma pessoa; nome novo no lugar de um que saiu = a pessoa foi renomeada; quem entrou agora fica de fora das contas antigas.
+    const antes = pessoas(), de = nomes.map(n => antes.findIndex(a => semAcento(a) === semAcento(n))), usados = new Set(de.filter(i => i >= 0));
+    de.forEach((i, j) => { if (i < 0 && j < antes.length && !usados.has(j) && S.config.pessoas){ de[j] = j; usados.add(j); } });
+    if (S.config.pessoas && (de.length !== antes.length || de.some((i, j) => i !== j)))
+      for (const c of [...S.contas]){ const { id, _t, ...r } = c;
+        const novo = { ...r, recebido: de.map(i => i >= 0 && !!(c.recebido || [])[i]), fora: de.map((i, j) => i < 0 || (c.fora || []).includes(i) ? j : -1).filter(j => j >= 0) };
+        if ((c.partes || []).some(v => v != null)) novo.partes = de.map(i => i >= 0 ? (c.partes || [])[i] ?? null : null);
+        await salvar("contas", id, novo); }
     await salvarConfig({ ...S.config, pessoas:nomes, pix:$("#c_pix").value.trim(), catCasa:$("#c_casa").value });
     $("#dlg").close(); toast("Salvo"); };
   $("#cancel").onclick = () => $("#dlg").close();
@@ -1295,7 +1318,7 @@ async function baixar(nome, data, tipo){
 }
 // planilha (.csv): abre no Excel e no Google Planilhas. Usa ponto e vírgula e vírgula decimal, como o Excel em português espera.
 async function exportarCSV(){
-  const q = v => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+  const q = v => '"' + String(v ?? "").replace(/^([=+\-@])/, "'$1").replace(/"/g, '""') + '"';
   const linhas = todosGastos().sort((a,b) => (a.data||"").localeCompare(b.data||"")).map(g =>
     [dataValida(g.data) ? g.data.split("-").reverse().join("/") : "", q(g.descricao), q(nomeDe(g.categoriaId)), q(rotPag(g.pagamento)), (num(g.valor) ?? 0).toFixed(2).replace(".", ","), q(g.daConta ? "conta da casa (sua parte)" : "")].join(";"));
   if (!linhas.length){ toast("Ainda não há gastos para exportar."); return; }
@@ -1386,8 +1409,8 @@ function revisarOFX(itens){
   // entradas: valor igual à parte de uma conta em aberto de alguém (ou à soma de tudo que a pessoa deve)
   const ps = pessoas(), entradas = [], outras = [];
   for (const e of (itens.entradas || []).filter(e => !ja.has(e.chave))){
-    const cand = ps.map((nome, i) => { const pend = devendo(i), uma = pend.find(c => igual(parteDe(c,i), e.valor));
-      const contas = uma ? [uma] : pend.length > 1 && igual(pend.reduce((a,c) => a + parteDe(c,i), 0), e.valor) ? pend : null;
+    const cand = ps.map((nome, i) => { const pend = devendo(i), quase = (a, b) => Math.abs(a - b) < 0.011, uma = pend.find(c => quase(parteDe(c,i), e.valor));
+      const contas = uma ? [uma] : pend.length > 1 && quase(pend.reduce((a,c) => a + parteDe(c,i), 0), e.valor) ? pend : null;
       const primeiro = semAcento(nome.split(" ")[0]);
       return contas && { i, nome, contas, noNome: primeiro.length >= 3 && semAcento(e.descricao).includes(primeiro) }; }).filter(Boolean);
     const m = cand.find(x => x.noNome) || (cand.length === 1 ? cand[0] : null);
@@ -1397,7 +1420,7 @@ function revisarOFX(itens){
   // vem marcada só a entrada parecida com uma que você já anotou (ex.: o salário de todo mês)
   const conhecida = e => { const n = nucleo(e.descricao); return n.length >= 4 && S.receitas.some(r => { const m = nucleo(r.descricao); return m.length >= 4 && (m.includes(n) || n.includes(m)); }); };
   // entrada com o nome de quem divide as contas, mas com valor diferente do que ela deve: provavelmente não é renda
-  const deAmiga = e => ps.find(n => { const pn = semAcento(n.split(" ")[0]); return pn.length >= 3 && new RegExp("\\b" + pn.replace(/[^a-z]/g, "") + "\\b").test(semAcento(e.descricao)); }) || "";
+  const deAmiga = e => ps.find(n => { const pn = semAcento(n.split(" ")[0]).replace(/[^a-z]/g, ""); return pn.length >= 3 && new RegExp("\\b" + pn + "\\b").test(semAcento(e.descricao)); }) || "";
   if (!itens.length && !entradas.length && !outras.length){ toast("Nada novo neste extrato."); return; }
   const cont = f => itens.filter(f).length, nNovos = cont(t => !t.rep && !t.conta && !t.gasto), nRep = cont(t => t.rep), nJa = cont(t => t.gasto), nContas = cont(t => t.conta);
   const resumo = [nNovos && plural(nNovos, "gasto novo", "gastos novos"), nJa && plural(nJa, "já anotado", "já anotados"), nContas && plural(nContas, "conta da casa", "contas da casa"),
@@ -1503,7 +1526,7 @@ function abrirBackup(){
     <div class="field"><label for="bkFile">Importar backup</label>
       <input type="file" id="bkFile" class="sr" accept=".json,application/json">
       <label for="bkFile" class="arquivo">Escolher arquivo de backup…</label>
-      <span class="need">Junta com o que já existe; itens com o mesmo código são substituídos.</span></div>
+      <span class="need">Junta com o que já existe. Quando o mesmo item está nos dois, vale o que foi mudado por último.</span></div>
     <div class="opcoes"><button type="button" id="bkOfx">Conferir extrato do banco (.ofx)<span aria-hidden="true">›</span></button><button type="button" id="bkCsv">Exportar gastos em planilha (.csv)<span aria-hidden="true">›</span></button>${PODE_SINC ? '<button type="button" id="bkSinc">Sincronização com o Google Drive<span aria-hidden="true">›</span></button>' : ""}</div>
     <div class="actions"><span></span><div class="r"><button type="button" id="cancel">Fechar</button></div></div>`;
   frm.onsubmit = e => e.preventDefault();
@@ -1518,21 +1541,25 @@ function abrirBackup(){
     rd.onload = async () => {
       let d; try { d = JSON.parse(rd.result); } catch(_){ d = null; }
       if (!d || d.app!=="meus-gastos"){ toast("Arquivo inválido: não é um backup do Meus Gastos."); return; }
-      let n = 0;
+      let n = 0, mantidos = 0;
       for (const c of COLS) for (const x of (Array.isArray(d[c]) ? d[c] : [])) {
-        if (!x || typeof x !== "object" || !x.id) continue;
+        if (!x || typeof x !== "object" || Array.isArray(x) || !x.id) continue;
         const { id, _t, ...resto } = x;
+        // arquivo mexido à mão: data e descrição têm que ser texto, senão a tela não consegue desenhar
+        if ("data" in resto && typeof resto.data !== "string") resto.data = "";
+        for (const k of ["descricao", "nome"]) if (k in resto && typeof resto[k] !== "string") resto[k] = String(resto[k] ?? "");
+        // se o item daqui foi mudado depois do que está no arquivo, fica o daqui
+        const meu = S[c].find(y => y.id === String(id));
+        if (meu && (meu._t || 0) > (+_t || 0)){ mantidos++; continue; }
         if (await salvar(c, String(id), resto)) n++;
       }
-      // orçamento e nomes: só entram se este aparelho ainda não tiver os dele
+      // ajustes (orçamento, nomes, cartões, meta, categorias aprendidas...): só entram os que este aparelho ainda não tem
+      const vazio = v => v == null || v === "" || (Array.isArray(v) && !v.length) || (typeof v === "object" && !Array.isArray(v) && !Object.keys(v).length);
       const cfg = {};
-      if (num(d.config?.orcamento) != null && num(S.config.orcamento) == null) cfg.orcamento = num(d.config.orcamento);
-      if (Array.isArray(d.config?.pessoas) && d.config.pessoas.length && !S.config.pessoas) cfg.pessoas = d.config.pessoas.map(String).slice(0, 8);
-      if (d.config?.pix && !S.config.pix) cfg.pix = String(d.config.pix);
-      if (d.config?.catCasa && !S.config.catCasa) cfg.catCasa = String(d.config.catCasa);
+      if (d.config && typeof d.config === "object") for (const [k, v] of Object.entries(d.config)) if (k !== "_t" && k !== "_ts" && !vazio(v) && vazio(S.config[k])) cfg[k] = v;
       if (Object.keys(cfg).length) await salvarConfig({ ...S.config, ...cfg });
       marcarBackup(); gerarFixos(); render();
-      $("#dlg").close(); toast(plural(n,"item importado","itens importados"));
+      $("#dlg").close(); toast(plural(n,"item importado","itens importados") + (mantidos ? ` · ${mantidos} já ${mantidos === 1 ? "estava mais novo" : "estavam mais novos"} aqui` : ""));
     };
     rd.readAsText(f);
   };
@@ -1551,7 +1578,10 @@ function render(){
     const r = rota();
     document.querySelectorAll("#tabs a").forEach(a => { if (a.getAttribute("href")==="#"+r) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
     $("#titulo").textContent = TITULOS[r];
-    $("#view").innerHTML = mode==="carregando" ? vCarregando() : VIEWS[r]();
+    let html;
+    try { html = mode==="carregando" ? vCarregando() : VIEWS[r](); }
+    catch(e){ console.error(e); html = '<div class="notice"><span>Não deu para mostrar esta tela. Seus dados continuam guardados: baixe um backup e avise quem cuida do app.</span><button data-acao="backup">Fazer backup</button></div>'; }
+    $("#view").innerHTML = html;
   });
 }
 

@@ -215,6 +215,42 @@ const T = s => String(s || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ");
   ok("arquivo que não é backup é recusado", (await q.textContent("#toast")).includes("inválido"));
   ok("telas largas: abas em pílula no topo", (await q.$eval("#tabs", e => getComputedStyle(e).position)) === "sticky");
 
+  titulo("Segurança dos dados");
+  // regra de juntar dois aparelhos (a mesma da sincronização com o Google Drive)
+  const junto = await p.evaluate(() => { const j = window.__meusGastosTeste.juntar, v = Object.fromEntries(["categorias", "contas", "receitas"].map(c => [c, []]));
+    const T0 = Date.now() - 100000, t = n => T0 + n; // horas de hoje: a regra ignora registros de exclusão com mais de 180 dias
+    const local = { ...v, apagados: { sumiu: t(50), voltou: t(5) }, gastos: [{ id: "a", valor: 1, _t: t(10) }, { id: "b", valor: 2, _t: t(30) }, { id: "voltou", valor: 9, _t: t(20) }],
+      config: { meta: 100, orcamento: 900, _t: t(40), _ts: { meta: t(40), orcamento: t(10) } } };
+    const remoto = { ...v, apagados: {}, gastos: [{ id: "a", valor: 7, _t: t(20) }, { id: "b", valor: 8, _t: t(20) }, { id: "sumiu", valor: 3, _t: t(40) }, { id: "novo", valor: 4, _t: t(5) }],
+      config: { meta: 50, orcamento: 800, cartoes: [{ id: "", nome: "Roxo", fechamento: 5 }], _t: t(30), _ts: { meta: t(20), orcamento: t(30), cartoes: t(30) } } };
+    const r = j(local, remoto); return { gastos: Object.fromEntries(r.gastos.map(g => [g.id, g.valor])), config: r.config }; });
+  ok("juntar: em cada item vale a versão mais nova", junto.gastos.a === 7 && junto.gastos.b === 2, JSON.stringify(junto.gastos));
+  ok("juntar: item apagado não volta, item restaurado depois de apagado fica", !("sumiu" in junto.gastos) && junto.gastos.voltou === 9 && junto.gastos.novo === 4, JSON.stringify(junto.gastos));
+  ok("juntar: cada ajuste vale o mais novo (meta de um aparelho, orçamento e cartão do outro)", junto.config.meta === 100 && junto.config.orcamento === 800 && junto.config.cartoes.length === 1, JSON.stringify(junto.config));
+  // trocar os nomes de quem divide: as marcações acompanham a pessoa
+  await ir("contas");
+  const flags = () => dados().then(d => { const c = d.contas.find(c => c.descricao === "Internet"); return { rec: c.recebido, fora: c.fora, nomes: d.config.pessoas }; });
+  const f0 = await flags(); // Internet: só Ana divide, e ela já pagou
+  await p.click('[data-acao="pessoas"]'); await p.fill("#c_pes", "Bia, Ana, Cris"); await salvarForm(); await p.waitForTimeout(300);
+  const f1 = await flags();
+  ok("mudar a ordem dos nomes mantém quem pagou e quem divide", f0.rec[0] === true && f1.rec[1] === true && f1.rec[0] === false && f1.fora.includes(0) && !f1.fora.includes(1), JSON.stringify(f1));
+  ok("quem entra agora fica de fora das contas antigas", f1.fora.includes(2), JSON.stringify(f1.fora));
+  await p.click('[data-acao="pessoas"]'); await p.fill("#c_pes", "Bia, Ana Paula, Cris"); await salvarForm(); await p.waitForTimeout(300);
+  ok("renomear uma pessoa mantém as marcações dela", (await flags()).rec[1] === true);
+  await p.click('[data-acao="pessoas"]'); await p.fill("#c_pes", "Ana Paula, Bia"); await salvarForm(); await p.waitForTimeout(300);
+  const f3 = await flags();
+  ok("tirar uma pessoa e reordenar continua certo", f3.rec[0] === true && f3.rec.length === 2 && f3.fora.join() === "1", JSON.stringify(f3));
+  await p.click('[data-acao="pessoas"]'); await p.fill("#c_pes", "Ana, Bia"); await salvarForm(); await p.waitForTimeout(300);
+  // backup mais velho não passa por cima de mudança mais nova
+  fs.writeFileSync(path.join(tmp, "velho.json"), JSON.stringify({ app: "meus-gastos", gastos: [{ ...(await dados()).gastos.find(g => g.descricao === "Feira"), descricao: "Feira antiga", _t: 1 }, { id: "torto", descricao: 5, valor: "x", data: 20261101, _t: 1 }], config: { meta: 123, novoAjuste: "sim" } }));
+  await p.click("#bkp"); await p.setInputFiles("#bkFile", path.join(tmp, "velho.json")); await p.waitForTimeout(600);
+  const d5 = await dados();
+  ok("backup mais velho não troca um gasto mudado depois", d5.gastos.some(g => g.descricao === "Feira") && !d5.gastos.some(g => g.descricao === "Feira antiga") && (await aviso()).includes("mais novo"), await aviso());
+  ok("ajuste que já existe fica, ajuste que faltava entra", d5.config.meta === 10 && d5.config.novoAjuste === "sim", JSON.stringify({ meta: d5.config.meta, novo: d5.config.novoAjuste }));
+  await ir("gastos"); await ir("painel");
+  ok("item torto de um arquivo mexido à mão não quebra as telas", d5.gastos.find(g => g.id === "torto").data === "" && await p.isVisible(".wg"));
+  await p.evaluate(() => { const d = JSON.parse(localStorage.getItem("meus-gastos-v1")); d.gastos = d.gastos.filter(g => g.id !== "torto"); localStorage.setItem("meus-gastos-v1", JSON.stringify(d)); }); await p.reload(); await p.waitForSelector(".mesnav");
+
   titulo("Categorias, aparência e telas");
   await ir("categorias");
   ok("categoria aprendida aparece para corrigir", (await p.$$eval("[data-regra]", e => e.length)) === 1);

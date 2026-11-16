@@ -89,6 +89,8 @@ No topo, o botão redondo com uma **caixa** abre o Backup. Ali dá para baixar u
 
 Use o backup para levar os dados de um aparelho para outro e para não perder nada se os dados do navegador forem limpos.
 
+Importar junta com o que já existe. Quando o mesmo item está no arquivo e no aparelho, vale o que foi mudado por último, então um backup antigo não desfaz mudanças mais novas.
+
 ## Sincronizar entre celular e computador (opcional)
 
 Com o site hospedado, os dados podem ficar iguais em todos os aparelhos. Uma cópia fica numa pasta escondida do **seu** Google Drive, que só o app enxerga. Sem internet, o app continua funcionando e sincroniza depois. Se não quiser usar, nada muda.
