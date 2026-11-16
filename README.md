@@ -115,4 +115,14 @@ Com o site hospedado, dá para instalar o Meus Gastos na tela inicial. Ele ganha
 
 O app instalado no iPhone guarda os dados separados do Safari, então use o **Backup** para passar de um para o outro.
 
+## Testes
+
+A pasta `testes` guarda um roteiro que confere as funções principais do app num navegador invisível. Para rodar, na pasta do projeto:
+
+```bash
+node testes/testar.js
+```
+
+Precisa do Node e do Playwright (a biblioteca que controla o navegador). No fim, cada conferência aparece com ✓ ou ✗. Ele não mexe nos seus dados: usa só dados inventados.
+
 Para quem mexe no código: os arquivos `manifest.webmanifest`, `sw.js` e os ícones `.png` precisam ficar na mesma pasta do `index.html`. Ao mudar o `sw.js` ou os ícones, aumente a `VERSAO` dentro dele.

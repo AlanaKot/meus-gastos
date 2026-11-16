@@ -13,6 +13,11 @@ Meus Gastos: app pessoal para anotar gastos. Irmão do **Meu Semestre**, e deve 
 - Toda mudança: criar uma branch, fazer commit, abrir um PR e mandar o link.
 - Só fazer merge quando ela pedir ("pode juntar").
 
+## Testes
+
+- `node testes/testar.js` abre o app num navegador invisível e confere as funções principais (precisa de Node e Playwright). Rodar antes de abrir um PR; tem que terminar em "Tudo certo".
+- Ao criar ou mudar uma função, acrescentar ou ajustar a conferência dela no mesmo arquivo. Usar só dados inventados.
+
 ## Padrão do app
 
 O `index.html` já segue o padrão do `meu-semestre-site`. Ao mexer, manter:
@@ -26,6 +31,7 @@ O `index.html` já segue o padrão do `meu-semestre-site`. Ao mexer, manter:
 
 - **Entradas (`S.receitas`):** salário e outras rendas, anotadas no fim do Painel. "Sobrou no mês" = entradas − gastos.
 - **Cartão:** `S.config.fechamento` (dia) e `faturas()` somam os gastos no crédito da fatura aberta e da seguinte.
+- **Primeiros passos** (`primeirosPassos()`): quadro no Painel enquanto não existe categoria e gasto.
 - **Painel:** gasto do mês, comparação com o mês anterior, orçamento do mês e quanto resta, média por dia e projeção, gasto por categoria, por forma de pagamento, por dia e nos últimos 6 meses, últimos gastos.
 - **Gastos:** lista por dia, filtro por categoria, navegação entre meses. Campos: descrição, valor, data, categoria, forma de pagamento (Pix, débito, crédito, dinheiro, boleto). Parcelas (um gasto por mês, só ao criar), "Repetir todo mês", Duplicar e botões "Repetir hoje" (`favoritos()`). Parcelas da mesma compra têm o mesmo `grupo`.
 - **Contas (da casa):** a dona paga todas as contas e as amigas mandam o Pix da parte delas. Campos: conta, valor total, vencimento, quem divide (`fora` guarda quem não entra), "Repetir todo mês". Chaves "Paguei a conta" e "Fulana me pagou". Os nomes ficam em `S.config.pessoas`; a divisão é em partes iguais entre quem entra + ela. Botão Cobrar monta a mensagem (com `S.config.pix`, se houver). `partes` guarda valor fixo por pessoa; o resto divide igual (`parteDe(c, i)` e `minhaParte(c)`). Lembretes: aviso no topo (`avisoContas`), arquivo `.ics` e notificação diária ao abrir.
