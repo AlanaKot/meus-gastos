@@ -264,8 +264,9 @@ dialog.largo{width:min(980px,calc(100vw - 32px))}
 /* valor opcional da parte de cada pessoa, no formulário da conta */
 .pes input:not([type=checkbox]){width:104px;flex:none;background:var(--fill);text-align:right}
 /* atalhos para repetir os gastos mais comuns */
-.favs{display:flex;gap:8px;align-items:center;overflow-x:auto;margin-bottom:12px;scrollbar-width:none}
-.favs>*{flex:none;white-space:nowrap}
+.favs{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.favs>span{flex:1 0 100%}
+.favs button{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .grupo select{background:var(--fill);width:auto;max-width:52%;flex:none}
 .caixa{background:var(--campo);border-radius:10px;padding-inline:12px}
 .field label.caixa{padding-inline:12px}
@@ -274,6 +275,11 @@ dialog.largo{width:min(980px,calc(100vw - 32px))}
 .opcoes button{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:0;border-radius:0;padding:12px 16px;min-height:44px;color:var(--accent);font:inherit}
 .opcoes button+button{border-top:.5px solid var(--line)}
 .opcoes button span{color:var(--muted);font-size:1.2em}
+.opcoes button.danger{color:var(--bad)}
+.opcoes button:hover{background:var(--fill)}
+/* dois botões do mesmo tamanho, lado a lado (Cancelar e Salvar) */
+.actions .r.iguais{flex:1;flex-wrap:nowrap}
+.actions .r.iguais button{flex:1}
 /* busca e revisão do extrato */
 .achado{width:100%;text-align:left;background:none;border:0;border-bottom:.5px solid var(--line);border-radius:0;color:inherit;font:inherit;cursor:pointer;min-height:44px;padding-inline:0}
 .achado:hover{background:var(--fill)}
@@ -1053,8 +1059,8 @@ function abrirForm(col, id, preset={}){
   frm.innerHTML = `<h2>${id?F.editar:F.titulo}</h2>${campos}
     ${irmas.length > 1?`<div class="field"><label class="row chave caixa" style="font-size:1rem;color:var(--fg)"><span class="grow">Mudar categoria e pagamento nas ${irmas.length} parcelas</span><input type="checkbox" name="todasParc"></label></div>`:""}
     <p class="erro" id="erro" role="alert" hidden></p>
-    <div class="actions">${id?`<div class="r"><button type="button" class="danger" id="del">Excluir</button>${col==="gastos"?'<button type="button" id="dup">Duplicar</button>':col==="contas"?'<button type="button" id="dup">Repetir no mês seguinte</button>':""}${irmas.length > 1?`<button type="button" class="danger" id="delTodas">Excluir as ${irmas.length} parcelas</button>`:""}</div>`:"<span></span>"}
-      <div class="r"><button type="button" id="cancel">Cancelar</button><button type="submit" class="primary">Salvar</button></div></div>`;
+    <div class="actions"><div class="r iguais"><button type="button" id="cancel">Cancelar</button><button type="submit" class="primary">Salvar</button></div></div>
+    ${id?`<div class="opcoes">${col==="gastos"?'<button type="button" id="dup">Duplicar</button>':col==="contas"?'<button type="button" id="dup">Repetir no mês seguinte</button>':""}${irmas.length > 1?`<button type="button" class="danger" id="delTodas">Excluir as ${irmas.length} parcelas</button>`:""}<button type="button" class="danger" id="del">Excluir</button></div>`:""}`;
   frm.noValidate = true;
   // o campo Cartão só aparece quando o pagamento é crédito
   { const fc = $("#f_cartaoId")?.closest(".field"), fp = $("#f_pagamento"); if (fc && fp){ const ver = () => fc.hidden = fp.value !== "credito"; fp.onchange = ver; ver(); } }
@@ -1194,6 +1200,8 @@ function abrirAno(ano = mes.slice(0,4)){
   $("#a_menos").onclick = () => abrirAno(String(+ano - 1)); $("#a_mais").onclick = () => abrirAno(String(+ano + 1));
   $("#dlg").classList.add("largo");
   if (!$("#dlg").open) $("#dlg").showModal();
+  // no celular a tabela é mais larga que a tela: já abre mostrando o mês atual
+  const sel = frm.querySelector("th.sel"), rolo = frm.querySelector(".tbl-wrap"); if (sel && rolo) rolo.scrollLeft = sel.offsetLeft - rolo.clientWidth / 2;
 }
 function abrirPessoas(){
   const frm = $("#frm");
