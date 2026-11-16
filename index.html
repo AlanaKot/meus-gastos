@@ -131,6 +131,10 @@ button.danger{color:var(--bad)}
 .row{display:flex;align-items:center;gap:12px;padding:11px 0;position:relative;min-height:44px}
 .row:not(:first-child)::before{content:"";position:absolute;top:0;right:0;left:var(--rec,0px);border-top:.5px solid var(--line)}
 .row:has(>.dot){--rec:22px}
+.row:has(>.pn){--rec:42px}
+/* bolinha numerada dos primeiros passos; vira um "feito" quando o passo está pronto */
+.pn{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--fill);color:var(--muted);font:700 .94rem var(--f-num)}
+.pn.ok{background:var(--accent-fill);color:var(--accent-ink)}
 .row .grow{flex:1;min-width:0}
 .row .t{font-size:1.0625rem;letter-spacing:-.02em;overflow-wrap:anywhere}
 .row .m{color:var(--muted);font-size:.84rem;overflow-wrap:anywhere}
@@ -728,6 +732,7 @@ const ICO = {
   pagar: svgI('<path d="M12 4v13M7 12l5 5 5-5M5 20h14"/>'),
   receber: svgI('<path d="M12 17V4M7 9l5-5 5 5M5 20h14"/>'),
   saldo: svgI('<path d="M5 8h14M5 16h14"/><path d="m16 5 3 3-3 3M8 13l-3 3 3 3"/>'),
+  feito: svgI('<path d="m5 12.5 4.5 4.5L19 7"/>'),
   alvo: svgI('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/>'),
   media: svgI('<path d="M4 19h16M7 16v-4M12 16V7M17 16v-6"/>'),
 };
@@ -763,6 +768,22 @@ const linhaGasto = (g, comData) => `<div class="row" ${editavel(g.daConta ? "con
     <div class="m">${esc(nomeDe(g.categoriaId))}${comData?" · "+fmtData(g.data):""}${g.pagamento?" · "+esc(rotPag(g.pagamento)):""}${g.daConta?" · sua parte da conta":""}${g.fixa?" · todo mês":""}${g.ofx?" · ✓ extrato":""}</div></div>
   <span class="val">${brl(num(g.valor))}</span></div>`;
 const maisNovos = (a,b) => (b.data||"").localeCompare(a.data||"") || (b._t||0) - (a._t||0);
+
+// Quadro que aparece enquanto o app está vazio e some depois que existe uma categoria e um gasto.
+function primeirosPassos(){
+  const passos = [
+    ["Crie suas categorias", "Mercado, Transporte, Lazer. O limite mensal é opcional.", S.categorias.length > 0, '<button class="primary" data-novo="categorias">+ Categoria</button>'],
+    ["Anote o primeiro gasto", "Depois dá para conferir o extrato do banco, na aba Gastos.", S.gastos.length > 0, '<button class="primary" data-novo="gastos">+ Gasto</button>'],
+    ["Cadastre as contas da casa", "Se você divide as contas com alguém. Senão, pode pular.", S.contas.length > 0, '<button class="primary" data-novo="contas">+ Conta</button>'],
+  ];
+  if (passos[0][2] && passos[1][2]) return "";
+  const atual = passos.findIndex(p => !p[2]);
+  return `<section class="sec" style="margin-bottom:26px">
+    <div class="bar"><h3>Primeiros passos</h3>${S.categorias.length ? "" : '<button class="ghost" data-acao="backup">Já tenho backup</button>'}</div>
+    <div class="grupo"><div class="list">${passos.map((p, i) => `<div class="row"><span class="pn ${p[2] ? "ok" : ""}">${p[2] ? ICO.feito : i + 1}</span>
+      <div class="grow"><div class="t">${p[0]}</div><div class="m">${p[1]}</div></div>${i === atual ? p[3] : ""}</div>`).join("")}</div></div>
+  </section>`;
+}
 
 function vPainel(){
   const lista = doMes(mes), total = soma(lista), mAnt = mesMais(mes,-1), ant = soma(doMes(mAnt));
@@ -806,6 +827,7 @@ function vPainel(){
   const seis = Array.from({length:6}, (_,i) => mesMais(mes, i-5)).map(m => ({ m, t: soma(doMes(m)) })), max6 = Math.max(...seis.map(x => x.t), 1);
 
   return `${avisoContas()}${avisoBackup()}
+  ${primeirosPassos()}
   ${barraMes("gastos","Novo gasto")}
   ${widgets}
   <div class="grid2">
