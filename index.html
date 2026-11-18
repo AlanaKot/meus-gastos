@@ -302,6 +302,13 @@ dialog.largo{width:min(980px,calc(100vw - 32px))}
 .meses6{display:flex;align-items:flex-end;gap:8px;padding:12px 0 8px}
 .meses6>div{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .meses6 i{width:100%;max-width:44px;border-radius:5px 5px 0 0;background:var(--accent-fill);opacity:.45;min-height:2px}
+.meses6 .area{position:relative;width:100%;height:84px;display:flex;align-items:flex-end;justify-content:center}
+.meses6 .lin,.amostra{border-top:2px dashed var(--m-warn)}
+.meses6 .lin{position:absolute;left:-4px;right:-4px;height:0}
+.meses6 .lin.meta,.amostra.meta{border-top-color:var(--m-ok)}
+.legenda{display:flex;flex-wrap:wrap;gap:4px 14px;margin:0;padding:0 0 10px}
+.legenda span{display:inline-flex;align-items:center;gap:6px}
+.amostra{display:inline-block;width:18px;height:0}
 .meses6 .sel{color:var(--fg);font-weight:600}
 .meses6 .sel i{opacity:1}
 .filter{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -919,7 +926,12 @@ function vPainel(){
   const ultimos = [...lista].sort(maisNovos).slice(0,6);
   const porPag = [...PAGAMENTOS, ["", "Não informado"]].map(([k, nome]) => ({ nome, t: soma(lista.filter(g => (g.pagamento || "") === k)) })).filter(x => x.t).sort((a,b) => b.t - a.t);
   const curto = v => v >= 1000 ? (v/1000).toLocaleString("pt-BR",{maximumFractionDigits:1}) + " mil" : String(Math.round(v));
-  const seis = Array.from({length:6}, (_,i) => mesMais(mes, i-5)).map(m => ({ m, t: soma(doMes(m).filter(g => !catGraf || g.categoriaId === catGraf)) })), max6 = Math.max(...seis.map(x => x.t), 1);
+  const seis = Array.from({length:6}, (_,i) => mesMais(mes, i-5)).map(m => ({ m, t: soma(doMes(m).filter(g => !catGraf || g.categoriaId === catGraf)) }));
+  // linhas do gráfico: o orçamento do mês (ou o limite da categoria escolhida) e, sem filtro de categoria, o máximo que dava para gastar no mês e ainda bater a meta de guardar (entradas − meta)
+  const limOrc = (catGraf ? num(cat(catGraf)?.orcamento) : num(S.config.orcamento)) || 0, metaG = catGraf ? 0 : num(S.config.meta) || 0;
+  seis.forEach(x => { x.orc = limOrc; const ent = soma(S.receitas.filter(r => (r.data||"").startsWith(x.m))); x.meta = metaG && ent - metaG > 0 ? ent - metaG : 0; });
+  const max6 = Math.max(...seis.map(x => Math.max(x.t, x.orc, x.meta)), 1), alt6 = v => Math.round(v / max6 * 84);
+  const temMeta = seis.some(x => x.meta);
 
   return `${avisoContas()}${avisoBackup()}
   ${primeirosPassos()}
@@ -935,7 +947,7 @@ function vPainel(){
           <div class="row"><div class="grow"><div class="t">Fatura seguinte</div><div class="m">Compras e parcelas depois do fechamento</div></div><span class="val">${brl(fat[0].proxima)}</span></div></div>`
         :fat.length?`<div class="list">${fat.map(c => `<div class="row"><div class="grow"><div class="t">${esc(c.nome)}</div><div class="m">Fatura aberta, fecha em ${fmtData(c.fim)} · seguinte ${brl(c.proxima)}</div></div><span class="val">${brl(c.aberta)}</span></div>`).join("")}</div>`
         :'<p class="empty">Diga o dia em que a fatura fecha para ver quanto vem na próxima.</p>'):"",
-      seis: secao("seis", "Últimos 6 meses", `<select id="gCat" aria-label="Categoria do gráfico"><option value="">Todas</option>${S.categorias.map(c => `<option value="${esc(c.id)}" ${c.id===catGraf?"selected":""}>${esc(c.nome)}</option>`).join("")}</select> <button class="ghost" data-acao="ano">Ver o ano</button>`, `<div class="meses6" role="img" aria-label="Gasto${catGraf?" em "+esc(cat(catGraf).nome):""} em cada um dos últimos 6 meses">${seis.map(x => `<div class="${x.m===mes?"sel":""}"><span>${x.t?curto(x.t):"—"}</span><i style="height:${Math.round(x.t/max6*84)}px"></i><span>${mesData(x.m).toLocaleDateString("pt-BR",{month:"short"}).replace(".","")}</span></div>`).join("")}</div>`)
+      seis: secao("seis", "Últimos 6 meses", `<select id="gCat" aria-label="Categoria do gráfico"><option value="">Todas</option>${S.categorias.map(c => `<option value="${esc(c.id)}" ${c.id===catGraf?"selected":""}>${esc(c.nome)}</option>`).join("")}</select> <button class="ghost" data-acao="ano">Ver o ano</button>`, `<div class="meses6" role="img" aria-label="Gasto${catGraf?" em "+esc(cat(catGraf).nome):""} em cada um dos últimos 6 meses">${seis.map(x => `<div class="${x.m===mes?"sel":""}"><span>${x.t?curto(x.t):"—"}</span><div class="area"><i style="height:${alt6(x.t)}px"></i>${x.orc?`<b class="lin" style="bottom:${alt6(x.orc)}px"></b>`:""}${x.meta?`<b class="lin meta" style="bottom:${alt6(x.meta)}px"></b>`:""}</div><span>${mesData(x.m).toLocaleDateString("pt-BR",{month:"short"}).replace(".","")}</span></div>`).join("")}</div>${limOrc || temMeta ? `<p class="need legenda">${limOrc ? `<span><b class="amostra"></b>${catGraf ? "Limite da categoria" : "Orçamento"} ${brl0(limOrc)}</span>` : ""}${temMeta ? '<span><b class="amostra meta"></b>Gasto máximo para bater a meta de guardar</span>' : ""}</p>` : ""}`)
     })}</div>
     <div class="col">${coluna(1, {
       dia: secao("dia", "Gasto por dia", "", `<div class="barras" role="img" aria-label="Gasto por dia em ${esc(mesLabel(mes))}">${barras}</div>

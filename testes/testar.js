@@ -341,6 +341,25 @@ const T = s => String(s || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ");
     await r.context().close();
   }
 
+  titulo("Linhas de orçamento e meta no gráfico dos 6 meses");
+  {
+    const r = await novoApp(), m0 = mesMais(0);
+    const dados6 = (config, orcCat) => JSON.stringify({ app: "meus-gastos", categorias: [{ id: "c1", nome: "Mercado", cor: "#3b6fd8", orcamento: orcCat, _t: 1 }], contas: [], desejos: [], apagados: {}, config,
+      receitas: [{ id: "r1", descricao: "Salário", valor: 1000, data: m0 + "-05", _t: 1 }], gastos: [{ id: "g1", descricao: "Feira", valor: 400, data: m0 + "-10", categoriaId: "c1", pagamento: "pix", _t: 1 }] });
+    const abrir6 = async d => { await r.evaluate(x => localStorage.setItem("meus-gastos-v1", x), d); await r.goto(U + "#painel"); await r.reload(); await r.waitForSelector(".meses6"); };
+    const linhas = () => r.$$eval(".meses6 .lin", e => e.map(x => x.classList.contains("meta") ? "meta" : "orc").join(","));
+    await abrir6(dados6({}, null));
+    ok("sem orçamento e sem meta, o gráfico não tem linhas nem legenda", (await linhas()) === "" && (await r.$$(".legenda")).length === 0);
+    await abrir6(dados6({ orcamento: 500, meta: 300 }, 200));
+    ok("orçamento aparece em cada mês e a meta só no mês com entrada", (await linhas()) === "orc,orc,orc,orc,orc,orc,meta" || (await linhas()).split(",").filter(x => x === "orc").length === 6 && (await linhas()).split(",").filter(x => x === "meta").length === 1, await linhas());
+    const leg = T(await r.textContent(".legenda"));
+    ok("legenda explica o orçamento e a meta", leg.includes("Orçamento R$ 500") && leg.includes("bater a meta"), leg);
+    await r.selectOption("#gCat", "c1"); await r.waitForTimeout(200);
+    const leg2 = T(await r.textContent(".legenda"));
+    ok("com categoria escolhida, vale o limite dela e some a linha da meta", leg2.includes("Limite da categoria R$ 200") && !leg2.includes("meta") && !(await linhas()).includes("meta"), leg2);
+    await r.context().close();
+  }
+
   for (const largura of [320, 390, 768]){
     const r = await novoApp({ viewport: { width: largura, height: 800 }, isMobile: largura < 700, hasTouch: largura < 700 });
     await r.evaluate(x => localStorage.setItem("meus-gastos-v1", x), JSON.stringify(await dados())); await r.reload(); await r.waitForSelector(".mesnav");
