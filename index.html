@@ -734,6 +734,7 @@ const recebeu = (c, i) => !!(c.recebido || [])[i];
 const catCasa = () => cat(S.config.catCasa)?.id || S.categorias.find(c => String(c.nome).trim().toLowerCase() === "casa")?.id || "";
 // todos os gastos: os anotados + a sua parte de cada conta da casa já paga (calculada na hora, não fica salva em dobro)
 const todosGastos = () => [...S.gastos, ...S.contas.filter(c => c.paga).map(c => ({ id:c.id, daConta:true, descricao:c.descricao, valor:minhaParte(c), data:c.pagaEm || c.data, categoriaId:catCasa(), pagamento:"pix", _t:c._t }))];
+let catGraf = ""; // categoria mostrada no quadro "Últimos 6 meses" (vazio = todas); não é salva
 const doMes = m => todosGastos().filter(g => (g.data||"").startsWith(m));
 const soma = l => l.reduce((a,g) => a + (num(g.valor) ?? 0), 0);
 function resumoCat(id, m){
@@ -875,7 +876,7 @@ function vPainel(){
   const ultimos = [...lista].sort(maisNovos).slice(0,6);
   const porPag = [...PAGAMENTOS, ["", "Não informado"]].map(([k, nome]) => ({ nome, t: soma(lista.filter(g => (g.pagamento || "") === k)) })).filter(x => x.t).sort((a,b) => b.t - a.t);
   const curto = v => v >= 1000 ? (v/1000).toLocaleString("pt-BR",{maximumFractionDigits:1}) + " mil" : String(Math.round(v));
-  const seis = Array.from({length:6}, (_,i) => mesMais(mes, i-5)).map(m => ({ m, t: soma(doMes(m)) })), max6 = Math.max(...seis.map(x => x.t), 1);
+  const seis = Array.from({length:6}, (_,i) => mesMais(mes, i-5)).map(m => ({ m, t: soma(doMes(m).filter(g => !catGraf || g.categoriaId === catGraf)) })), max6 = Math.max(...seis.map(x => x.t), 1);
 
   return `${avisoContas()}${avisoBackup()}
   ${primeirosPassos()}
@@ -891,7 +892,7 @@ function vPainel(){
           <div class="row"><div class="grow"><div class="t">Fatura seguinte</div><div class="m">Compras e parcelas depois do fechamento</div></div><span class="val">${brl(fat[0].proxima)}</span></div></div>`
         :fat.length?`<div class="list">${fat.map(c => `<div class="row"><div class="grow"><div class="t">${esc(c.nome)}</div><div class="m">Fatura aberta, fecha em ${fmtData(c.fim)} · seguinte ${brl(c.proxima)}</div></div><span class="val">${brl(c.aberta)}</span></div>`).join("")}</div>`
         :'<p class="empty">Diga o dia em que a fatura fecha para ver quanto vem na próxima.</p>'):""}
-      ${secao("seis", "Últimos 6 meses", '<button class="ghost" data-acao="ano">Ver o ano</button>', `<div class="meses6" role="img" aria-label="Gasto em cada um dos últimos 6 meses">${seis.map(x => `<div class="${x.m===mes?"sel":""}"><span>${x.t?curto(x.t):"—"}</span><i style="height:${Math.round(x.t/max6*84)}px"></i><span>${mesData(x.m).toLocaleDateString("pt-BR",{month:"short"}).replace(".","")}</span></div>`).join("")}</div>`)}
+      ${secao("seis", "Últimos 6 meses", `<select id="gCat" aria-label="Categoria do gráfico"><option value="">Todas</option>${S.categorias.map(c => `<option value="${esc(c.id)}" ${c.id===catGraf?"selected":""}>${esc(c.nome)}</option>`).join("")}</select> <button class="ghost" data-acao="ano">Ver o ano</button>`, `<div class="meses6" role="img" aria-label="Gasto${catGraf?" em "+esc(cat(catGraf).nome):""} em cada um dos últimos 6 meses">${seis.map(x => `<div class="${x.m===mes?"sel":""}"><span>${x.t?curto(x.t):"—"}</span><i style="height:${Math.round(x.t/max6*84)}px"></i><span>${mesData(x.m).toLocaleDateString("pt-BR",{month:"short"}).replace(".","")}</span></div>`).join("")}</div>`)}
     </div>
     <div class="col">
       ${secao("dia", "Gasto por dia", "", `<div class="barras" role="img" aria-label="Gasto por dia em ${esc(mesLabel(mes))}">${barras}</div>
@@ -1617,6 +1618,7 @@ $("#view").addEventListener("keydown", e => {
 $("#view").addEventListener("change", e => {
   const t = e.target;
   if (t.id==="fCat"){ filtroCat = t.value; render(); }
+  else if (t.id==="gCat"){ catGraf = t.value; render(); }
   else if (t.dataset.regra != null){ const r = { ...regras() }; if (t.value) r[t.dataset.regra] = t.value; else delete r[t.dataset.regra]; salvarConfig({ ...S.config, regras: r }); }
   else if (t.dataset.chk){ // chaves da aba Contas: "Paguei a conta" e "Fulana me pagou"
     const c = S.contas.find(x => x.id === t.dataset.id); if (!c) return;
