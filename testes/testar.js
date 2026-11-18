@@ -305,6 +305,26 @@ const T = s => String(s || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ");
   await p.evaluate(() => { const d = JSON.parse(localStorage.getItem("meus-gastos-v1")); d.desejos = d.desejos.filter(x => x.id !== "torto"); localStorage.setItem("meus-gastos-v1", JSON.stringify(d)); });
   await p.reload(); await p.waitForSelector(".bar");
 
+  titulo("Saldo acumulado entre meses");
+  {
+    const r = await novoApp();
+    const dia = (m, d) => m + "-" + d, base = { app: "meus-gastos", categorias: [{ id: "c1", nome: "Mercado", cor: "#3b6fd8", _t: 1 }], contas: [], desejos: [], apagados: {}, config: {} };
+    const gr = (id, m, v) => ({ id, descricao: "g" + id, valor: v, data: dia(m, "10"), categoriaId: "c1", pagamento: "pix", _t: 1 });
+    const rc = (id, m, v) => ({ id, descricao: "r" + id, valor: v, data: dia(m, "05"), _t: 1 });
+    const m2 = mesMais(-2), m1 = mesMais(-1), m0 = mesMais(0);
+    const poe = async d => { await r.evaluate(x => localStorage.setItem("meus-gastos-v1", x), JSON.stringify({ ...base, ...d })); await r.goto(U + "#painel"); await r.reload(); await r.waitForSelector(".wg"); };
+    const wid = async () => T(await r.$eval('[data-acao="meta"]', e => e.innerText));
+    await poe({ receitas: [rc("a", m2, 1000), rc("b", m1, 500), rc("c", m0, 200)], gastos: [gr("1", m2, 300), gr("2", m1, 800), gr("3", m0, 100)] });
+    ok("saldo acumulado soma o que sobrou nos meses anteriores", (await wid()).includes("Saldo acumulado: R$ 500,00 (vindo de R$ 400,00 dos meses anteriores)"), await wid());
+    await poe({ receitas: [rc("a", m1, 100), rc("c", m0, 200)], gastos: [gr("2", m1, 800), gr("3", m0, 100)] });
+    ok("mês anterior no vermelho aparece como devendo", (await wid()).includes("Saldo acumulado: -R$ 600,00 (devendo R$ 700,00 dos meses anteriores)"), await wid());
+    await poe({ receitas: [rc("c", m0, 200)], gastos: [gr("3", m0, 100)] });
+    ok("sem mês anterior com entrada, o saldo acumulado não aparece", !(await wid()).includes("Saldo acumulado"), await wid());
+    await poe({ receitas: [rc("a", m2, 1000), rc("c", m0, 200)], gastos: [gr("1", m0, 100)] });
+    ok("mês sem nada no meio continua somando", (await wid()).includes("Saldo acumulado: R$ 1.100,00 (vindo de R$ 1.000,00"), await wid());
+    await r.context().close();
+  }
+
   for (const largura of [320, 390, 768]){
     const r = await novoApp({ viewport: { width: largura, height: 800 }, isMobile: largura < 700, hasTouch: largura < 700 });
     await r.evaluate(x => localStorage.setItem("meus-gastos-v1", x), JSON.stringify(await dados())); await r.reload(); await r.waitForSelector(".mesnav");

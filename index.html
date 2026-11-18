@@ -769,6 +769,17 @@ function corBudget(total, lim){
   return p >= 1 ? "var(--m-bad)" : p >= .8 ? "var(--m-warn)" : "var(--m-ok)";
 }
 const pctDe = (total, lim) => lim ? Math.min(100, total / lim * 100) : 0;
+// Saldo acumulado: soma do que sobrou (entradas - gastos) em cada mês, desde o primeiro mês com entrada anotada.
+// Não é salvo: é calculado na hora. Devolve o que veio dos meses ANTES de m e o total até o fim de m (null se não há mês anterior com entrada).
+function saldoAcumulado(m){
+  const ent = S.receitas.map(r => String(r.data||"").slice(0,7)).filter(x => /^\d{4}-\d{2}$/.test(x)).sort()[0];
+  if (!ent || ent >= m) return null;
+  const rec = {}, gas = {};
+  for (const r of S.receitas){ const k = String(r.data||"").slice(0,7); rec[k] = (rec[k]||0) + (num(r.valor) ?? 0); }
+  for (const g of todosGastos()){ const k = String(g.data||"").slice(0,7); gas[k] = (gas[k]||0) + (num(g.valor) ?? 0); }
+  let veio = 0; for (let k = ent, n = 0; k < m && n < 600; k = mesMais(k, 1), n++) veio += (rec[k]||0) - (gas[k]||0);
+  return { veio, ate: veio + (rec[m]||0) - (gas[m]||0) };
+}
 const meter = (total, lim) => `<span class="meter" style="display:block"><i style="width:${pctDe(total,lim)}%;background:${corBudget(total,lim)}"></i></span>`;
 const textoResta = (resta, lim) => resta > 0 ? `Restam <b class="num">${brl0(resta)}</b> de ${brl0(lim)}`
   : resta === 0 ? `<span class="chip warn">No limite</span> de ${brl0(lim)}`
@@ -854,7 +865,7 @@ function vPainel(){
     comp = d === 0 ? `Igual a ${mesNome(mAnt)}` : `${Math.abs(d)}% a ${d > 0 ? "mais" : "menos"} que ${mesNome(mAnt)} (${brl0(ant)})`; }
 
   const entradas = S.receitas.filter(r => (r.data||"").startsWith(mes)).sort(maisNovos), entrou = soma(entradas), sobrou = entrou - total;
-  const metaMes = num(S.config.meta);
+  const metaMes = num(S.config.meta), acum = saldoAcumulado(mes);
   const fat = faturas(), temCredito = S.gastos.some(g => g.pagamento === "credito");
   const widgets = `<div class="wg quatro">
     <div class="w tinta"><span class="k">${ICO.carteira}Gasto no mês</span><span class="gr">${brl(total)}</span><span class="p">${comp}</span></div>
@@ -866,7 +877,8 @@ function vPainel(){
     <button class="w larga" data-acao="meta"><span class="k">${ICO.saldo}${sobrou<0?"Faltou no mês":"Sobrou no mês"}<span class="ir" aria-hidden="true">›</span></span><span class="gr ${sobrou<0?"bad":""}">${entradas.length?brl(Math.abs(sobrou)):"—"}</span>
       ${entradas.length && metaMes?`<span class="meter" style="display:block"><i style="width:${Math.max(0, Math.min(100, sobrou / metaMes * 100))}%;background:${sobrou>=metaMes?"var(--m-ok)":"var(--accent-fill)"}"></i></span>`:""}
       <span class="p">${!entradas.length?"Anote suas entradas, abaixo, para ver quanto sobra":!metaMes?`Entrou ${brl(entrou)} · toque para definir uma meta`
-        :sobrou>=metaMes?`Meta de guardar ${brl0(metaMes)} batida`:`Faltam ${brl0(metaMes - sobrou)} para a meta de guardar ${brl0(metaMes)}`}</span></button>
+        :sobrou>=metaMes?`Meta de guardar ${brl0(metaMes)} batida`:`Faltam ${brl0(metaMes - sobrou)} para a meta de guardar ${brl0(metaMes)}`}</span>
+      ${acum?`<span class="p">Saldo acumulado: <b class="num ${acum.ate<0?"bad":""}">${brl(acum.ate)}</b> (${acum.veio<0?"devendo":"vindo de"} ${brl(Math.abs(acum.veio))} dos meses anteriores)</span>`:""}</button>
   </div>`;
 
   const cats = S.categorias.map(c => ({c, ...resumoCat(c.id, mes)})).filter(x => x.total || x.lim);
@@ -1216,7 +1228,8 @@ function abrirAno(ano = mes.slice(0,4)){
       <tbody>${linhas.map(l => { const mx = Math.max(...l.v); return `<tr><th><span class="dot" style="background:${l.cor}"></span> ${esc(l.nome)}</th>${l.v.map(v => `<td style="background:color-mix(in srgb,var(--accent-fill) ${Math.round(v / mx * 30)}%,transparent)">${n(v)}</td>`).join("")}<td>${n(som(l.v))}</td></tr>`; }).join("")}</tbody>
       <tfoot><tr><th>Gastos</th>${tot.map(v => `<td>${n(v)}</td>`).join("")}<td>${n(som(tot))}</td></tr>
         ${rec.some(x => x) ? `<tr><th>Entradas</th>${rec.map(v => `<td>${n(v)}</td>`).join("")}<td>${n(som(rec))}</td></tr>
-        <tr><th>Sobrou</th>${rec.map((v,i) => `<td>${v || tot[i] ? Math.round(v - tot[i]).toLocaleString("pt-BR") : "–"}</td>`).join("")}<td>${Math.round(som(rec) - som(tot)).toLocaleString("pt-BR")}</td></tr>` : ""}</tfoot></table></div>
+        <tr><th>Sobrou</th>${rec.map((v,i) => `<td>${v || tot[i] ? Math.round(v - tot[i]).toLocaleString("pt-BR") : "–"}</td>`).join("")}<td>${Math.round(som(rec) - som(tot)).toLocaleString("pt-BR")}</td></tr>
+        <tr><th>Acumulado</th>${ms.map(m => { const a = saldoAcumulado(mesMais(m, 1)); return `<td>${a ? Math.round(a.veio).toLocaleString("pt-BR") : "–"}</td>`; }).join("")}<td></td></tr>` : ""}</tfoot></table></div>
       <p class="need">Valores em reais, sem centavos. Arraste a tabela para o lado para ver todos os meses.</p>` : `<p class="empty">Nenhum gasto em ${ano}.</p>`}
     <div class="actions"><span></span><div class="r"><button type="button" id="cancel">Fechar</button></div></div>`;
   frm.onsubmit = e => e.preventDefault();
