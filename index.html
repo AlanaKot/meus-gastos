@@ -826,6 +826,13 @@ function avisoContas(){
   const l = vencendo(); if (!l.length) return "";
   return `<div class="notice"><span>${l.length === 1 ? `<b>${esc(l[0].descricao)}</b> ${quandoVence(l[0])} (${brl(num(l[0].valor))}).` : `${l.length} contas da casa para pagar: ${l.slice(0,4).map(c => `<b>${esc(c.descricao)}</b> (${quandoVence(c)})`).join(", ")}${l.length>4?" e outras":""}.`}</span><a href="#contas">Ver</a></div>`;
 }
+// Aviso no topo (Painel e Gastos) quando uma categoria com limite chegou a 80% dele no mês atual. Só olha o mês de hoje.
+const perto = () => S.categorias.map(c => ({ c, ...resumoCat(c.id, mesAtual()) })).filter(x => x.lim > 0 && x.total >= x.lim * 0.8).sort((a,b) => b.total / b.lim - a.total / a.lim);
+function avisoOrcamento(){
+  const l = perto(); if (!l.length) return "";
+  const txt = x => `<b>${esc(x.c.nome)}</b> ${x.total >= x.lim ? `passou do limite (${brl0(x.total)} de ${brl0(x.lim)})` : `está em ${Math.floor(x.total / x.lim * 100)}% do limite (${brl0(x.total)} de ${brl0(x.lim)})`}`;
+  return `<div class="notice"><span>${l.slice(0,3).map(txt).join(". ")}${l.length > 3 ? ` e mais ${l.length - 3}` : ""}.</span><a href="#categorias">Ver</a></div>`;
+}
 const vCarregando = () => '<p class="empty">Carregando seus dados…</p>';
 
 // linha de cima das três abas: troca de mês e o botão de criar
@@ -933,7 +940,7 @@ function vPainel(){
   const max6 = Math.max(...seis.map(x => Math.max(x.t, x.orc, x.meta)), 1), alt6 = v => Math.round(v / max6 * 84);
   const temMeta = seis.some(x => x.meta);
 
-  return `${avisoContas()}${avisoBackup()}
+  return `${avisoContas()}${avisoOrcamento()}${avisoBackup()}
   ${primeirosPassos()}
   ${barraMes("gastos","Novo gasto")}
   ${widgets}
@@ -977,7 +984,7 @@ function vGastos(){
   const lista = doMes(mes).filter(g => !filtroCat || g.categoriaId === filtroCat).sort(maisNovos);
   const grupos = []; lista.forEach(g => { const u = grupos[grupos.length-1]; if (u && u.data === g.data) u.itens.push(g); else grupos.push({data:g.data, itens:[g]}); });
   const favs = mes === mesAtual() ? favoritos() : [];
-  return `${avisoContas()}${avisoBackup()}
+  return `${avisoContas()}${avisoOrcamento()}${avisoBackup()}
   ${barraMes("gastos","Novo gasto")}
   ${favs.length?`<div class="favs"><span class="need">Repetir hoje:</span>${favs.map(g => `<button data-fav="${esc(g.id)}">${esc(g.descricao)} · ${brl(num(g.valor))}</button>`).join("")}</div>`:""}
   <div class="bar filtro-linha"><div class="filter"><label class="sr" for="fCat">Categoria</label><select id="fCat"><option value="">Todas as categorias</option>${S.categorias.map(c=>`<option value="${esc(c.id)}" ${c.id===filtroCat?"selected":""}>${esc(c.nome)}</option>`).join("")}</select></div>

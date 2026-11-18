@@ -341,6 +341,25 @@ const T = s => String(s || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ");
     await r.context().close();
   }
 
+  titulo("Alerta de orçamento por categoria");
+  {
+    const r = await novoApp(), m0 = mesMais(0);
+    const cats = [{ id: "c1", nome: "Mercado", cor: "#3b6fd8", orcamento: 1000, _t: 1 }, { id: "c2", nome: "Lazer", cor: "#d9534f", orcamento: 200, _t: 1 }, { id: "c3", nome: "Transporte", cor: "#2e9e6a", _t: 1 }];
+    const gr = (id, v, c, m = m0) => ({ id, descricao: "g" + id, valor: v, data: m + "-10", categoriaId: c, pagamento: "pix", _t: 1 });
+    const poe = async gastos => { await r.evaluate(x => localStorage.setItem("meus-gastos-v1", x), JSON.stringify({ app: "meus-gastos", categorias: cats, gastos, contas: [], receitas: [], desejos: [], apagados: {}, config: {} })); await r.goto(U + "#painel"); await r.reload(); await r.waitForSelector(".wg"); };
+    const avisos = async () => T(await r.$$eval(".notice", e => e.map(x => x.innerText).join(" | ")));
+    await poe([gr("1", 700, "c1"), gr("2", 50, "c2")]);
+    ok("abaixo de 80% do limite não avisa", !(await avisos()).includes("limite"), await avisos());
+    await poe([gr("1", 850, "c1"), gr("2", 50, "c2"), gr("3", 9000, "c3")]);
+    ok("a partir de 80% avisa com a porcentagem; categoria sem limite não entra", (await avisos()).includes("Mercado está em 85% do limite (R$ 850 de R$ 1.000)") && !(await avisos()).includes("Transporte"), await avisos());
+    await poe([gr("1", 850, "c1"), gr("2", 250, "c2")]);
+    ok("passou do limite avisa que passou, e a mais cheia vem primeiro", /Lazer passou do limite \(R\$ 250 de R\$ 200\)\. Mercado está em 85%/.test(await avisos()), await avisos());
+    ok("o aviso também aparece na aba Gastos", (await r.goto(U + "#gastos"), await r.waitForTimeout(200), (await avisos()).includes("Lazer passou do limite")));
+    await poe([gr("1", 900, "c1", mesMais(-1))]);
+    ok("gasto de outro mês não conta para o alerta de hoje", !(await avisos()).includes("limite"), await avisos());
+    await r.context().close();
+  }
+
   titulo("Linhas de orçamento e meta no gráfico dos 6 meses");
   {
     const r = await novoApp(), m0 = mesMais(0);
