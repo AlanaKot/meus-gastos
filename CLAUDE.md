@@ -34,6 +34,7 @@ O `index.html` já segue o padrão do `meu-semestre-site`. Ao mexer, manter:
 ## O que o app faz
 
 - **Entradas (`S.receitas`):** salário e outras rendas, anotadas no fim do Painel. "Sobrou no mês" = entradas − gastos.
+- **Saldo acumulado:** `saldoAcumulado(m)` soma o que sobrou (entradas − gastos) de cada mês, a partir do primeiro mês com entrada anotada. Não é salvo, é calculado na hora; aparece no quadro "Sobrou no mês" do Painel e na linha "Acumulado" do resumo do ano.
 - **Meta de economia:** `S.config.meta`, comparada com o que sobrou no mês.
 - **Cartões:** `S.config.cartoes` (`[{id, nome, fechamento}]`; o formato antigo `S.config.fechamento` ainda é lido como um cartão de código vazio). `faturas()` soma os gastos no crédito da fatura aberta e da seguinte de cada cartão; o gasto guarda `cartaoId` e, sem ele, cai no primeiro cartão.
 - **Painel recolhível:** os quadros são montados por `secao()`; os recolhidos ficam no `localStorage` (chave `meus-gastos-painel`), só no aparelho. **Resumo do ano** em `abrirAno()`.
@@ -53,7 +54,7 @@ O `index.html` já segue o padrão do `meu-semestre-site`. Ao mexer, manter:
 
 ## Ideias para depois
 
-Saldo acumulado entre meses, escolher a ordem dos quadros do Painel.
+Escolher a ordem dos quadros do Painel.
 
 ## Publicação
 
