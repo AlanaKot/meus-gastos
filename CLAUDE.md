@@ -37,7 +37,7 @@ O `index.html` já segue o padrão do `meu-semestre-site`. Ao mexer, manter:
 - **Saldo acumulado:** `saldoAcumulado(m)` soma o que sobrou (entradas − gastos) de cada mês, a partir do primeiro mês com entrada anotada. Não é salvo, é calculado na hora; aparece no quadro "Sobrou no mês" do Painel e na linha "Acumulado" do resumo do ano.
 - **Meta de economia:** `S.config.meta`, comparada com o que sobrou no mês.
 - **Cartões:** `S.config.cartoes` (`[{id, nome, fechamento}]`; o formato antigo `S.config.fechamento` ainda é lido como um cartão de código vazio). `faturas()` soma os gastos no crédito da fatura aberta e da seguinte de cada cartão; o gasto guarda `cartaoId` e, sem ele, cai no primeiro cartão.
-- **Painel recolhível:** os quadros são montados por `secao()`; os recolhidos ficam no `localStorage` (chave `meus-gastos-painel`), só no aparelho. **Resumo do ano** em `abrirAno()`.
+- **Painel recolhível:** os quadros são montados por `secao()`; os recolhidos ficam no `localStorage` (chave `meus-gastos-painel`), só no aparelho. **Ordem dos quadros:** o botão "Reorganizar quadros" (fim do Painel) mostra setas ↑↓; cada uma das duas colunas tem a sua ordem (`COLUNAS`, `coluna()`, `moverQuadro()`), guardada no `localStorage` (chave `meus-gastos-ordem`), só no aparelho e fora do backup. **Resumo do ano** em `abrirAno()`.
 - **Janelas de editar:** Cancelar e Salvar lado a lado; as outras ações (Duplicar, Excluir) ficam numa lista `.opcoes` embaixo, uma por linha, para não se espremerem no celular.
 - **Primeiros passos** (`primeirosPassos()`): quadro no Painel enquanto não existe categoria e gasto.
 - **Painel:** gasto do mês, comparação com o mês anterior, orçamento do mês e quanto resta, média por dia e projeção, gasto por categoria, por forma de pagamento, por dia e nos últimos 6 meses, últimos gastos.
@@ -54,7 +54,7 @@ O `index.html` já segue o padrão do `meu-semestre-site`. Ao mexer, manter:
 
 ## Ideias para depois
 
-Escolher a ordem dos quadros do Painel.
+Ver a lista de melhorias combinadas na issue #10 do repositório.
 
 ## Publicação
 

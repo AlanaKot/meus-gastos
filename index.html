@@ -190,6 +190,9 @@ button.w.w:hover{background:var(--surface);filter:brightness(.97)}
 .foto.peq{width:40px;height:40px;border-radius:9px}
 .foto.grande{width:100%;height:auto;max-height:260px;object-fit:contain;border-radius:14px;display:block;margin-bottom:6px}
 .row.desejo{align-items:flex-start}
+.mover{display:inline-flex;gap:6px}
+.mover .topo-btn{font-size:1.1rem;font-weight:600}
+.reordenar{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:22px}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
 .card{background:var(--surface);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
 .card .t{font-size:1.0625rem;letter-spacing:-.02em;font-weight:600;min-width:0;overflow-wrap:anywhere}
@@ -835,7 +838,27 @@ const maisNovos = (a,b) => (b.data||"").localeCompare(a.data||"") || (b._t||0) -
 const LS_PAINEL = "meus-gastos-painel";
 let recolhidos = []; try { const r = JSON.parse(localStorage.getItem(LS_PAINEL)); if (Array.isArray(r)) recolhidos = r; } catch(e){}
 const secao = (id, nome, extra, conteudo) => { const f = recolhidos.includes(id);
-  return `<section class="sec"><div class="bar"><h3><button class="dobra" data-dobra="${id}" aria-expanded="${!f}">${nome}<span aria-hidden="true">›</span></button></h3>${f ? "" : extra}</div>${f ? "" : `<div class="grupo">${conteudo}</div>`}</section>`; };
+  const mover = reordenando ? `<span class="mover"><button type="button" class="topo-btn" data-mover="${id}" data-dir="-1" aria-label="Subir ${esc(nome)}">↑</button><button type="button" class="topo-btn" data-mover="${id}" data-dir="1" aria-label="Descer ${esc(nome)}">↓</button></span>` : "";
+  return `<section class="sec"><div class="bar"><h3><button class="dobra" data-dobra="${id}" aria-expanded="${!f}">${nome}<span aria-hidden="true">›</span></button></h3>${reordenando ? mover : f ? "" : extra}</div>${f || reordenando ? "" : `<div class="grupo">${conteudo}</div>`}</section>`; };
+
+// Ordem dos quadros do Painel: cada coluna tem a sua lista, guardada só neste aparelho (como os quadros recolhidos).
+// Quadros que aparecem só às vezes (formas de pagamento, cartão) voltam para o lugar deles quando aparecem.
+const LS_ORDEM = "meus-gastos-ordem";
+const COLUNAS = [["cat","pag","cartao","seis"], ["dia","ult","ent"]];
+let ordem = {}; try { const o = JSON.parse(localStorage.getItem(LS_ORDEM)); if (o && typeof o === "object" && !Array.isArray(o)) ordem = o; } catch(e){}
+let reordenando = false, visiveis = [[], []];
+const ordemDe = c => { const salva = Array.isArray(ordem[c]) ? ordem[c].filter(id => COLUNAS[c].includes(id)) : [];
+  return [...new Set([...salva, ...COLUNAS[c]])]; };
+const guardarOrdem = () => { try { Object.keys(ordem).length ? localStorage.setItem(LS_ORDEM, JSON.stringify(ordem)) : localStorage.removeItem(LS_ORDEM); } catch(e){} };
+function coluna(c, quadros){ const ids = ordemDe(c).filter(id => quadros[id]); visiveis[c] = ids; return ids.map(id => quadros[id]).join(""); }
+function moverQuadro(id, dir){
+  const c = COLUNAS.findIndex(l => l.includes(id)); if (c < 0) return;
+  const v = visiveis[c], i = v.indexOf(id), j = i + dir; if (i < 0 || j < 0 || j >= v.length) return;
+  [v[i], v[j]] = [v[j], v[i]];
+  // guarda a ordem completa: os quadros que não aparecem agora ficam no fim, na ordem de antes
+  ordem[c] = [...v, ...ordemDe(c).filter(x => !v.includes(x))]; guardarOrdem(); render();
+}
+const reordenar = () => `<div class="reordenar">${reordenando ? `<button type="button" data-acao="ordem-padrao" ${Object.keys(ordem).length ? "" : "disabled"}>Voltar à ordem original</button>` : ""}<button type="button" class="ghost" data-acao="ordem">${reordenando ? "Concluir" : "Reorganizar quadros"}</button></div>`;
 
 // Quadro que aparece enquanto o app está vazio e some depois que existe uma categoria e um gasto.
 function primeirosPassos(){
@@ -903,27 +926,28 @@ function vPainel(){
   ${barraMes("gastos","Novo gasto")}
   ${widgets}
   <div class="grid2">
-    <div class="col">
-      ${secao("cat", "Por categoria", "", linhasCat?`<div class="list">${linhasCat}</div>`
-        :S.categorias.length?'<p class="empty">Nenhum gasto neste mês.</p>':'<p class="empty">Crie suas categorias primeiro, na aba Categorias.</p>')}
-      ${porPag.length?secao("pag", "Por forma de pagamento", "", `<div class="list">${porPag.map(x => `<div class="row"><div class="grow"><div class="t">${x.nome}</div><div class="m">${Math.round(x.t/total*100)}% do mês</div></div><span class="val">${brl(x.t)}</span></div>`).join("")}</div>`):""}
-      ${fat.length || temCredito?secao("cartao", fat.length > 1 ? "Cartões de crédito" : "Cartão de crédito", `<button class="ghost" data-acao="cartao">${fat.length?"Ajustar":"Definir"}</button>`,
+    <div class="col">${coluna(0, {
+      cat: secao("cat", "Por categoria", "", linhasCat?`<div class="list">${linhasCat}</div>`
+        :S.categorias.length?'<p class="empty">Nenhum gasto neste mês.</p>':'<p class="empty">Crie suas categorias primeiro, na aba Categorias.</p>'),
+      pag: porPag.length?secao("pag", "Por forma de pagamento", "", `<div class="list">${porPag.map(x => `<div class="row"><div class="grow"><div class="t">${x.nome}</div><div class="m">${Math.round(x.t/total*100)}% do mês</div></div><span class="val">${brl(x.t)}</span></div>`).join("")}</div>`):"",
+      cartao: fat.length || temCredito?secao("cartao", fat.length > 1 ? "Cartões de crédito" : "Cartão de crédito", `<button class="ghost" data-acao="cartao">${fat.length?"Ajustar":"Definir"}</button>`,
         fat.length === 1?`<div class="list"><div class="row"><div class="grow"><div class="t">Fatura aberta</div><div class="m">Fecha em ${fmtData(fat[0].fim)}</div></div><span class="val">${brl(fat[0].aberta)}</span></div>
           <div class="row"><div class="grow"><div class="t">Fatura seguinte</div><div class="m">Compras e parcelas depois do fechamento</div></div><span class="val">${brl(fat[0].proxima)}</span></div></div>`
         :fat.length?`<div class="list">${fat.map(c => `<div class="row"><div class="grow"><div class="t">${esc(c.nome)}</div><div class="m">Fatura aberta, fecha em ${fmtData(c.fim)} · seguinte ${brl(c.proxima)}</div></div><span class="val">${brl(c.aberta)}</span></div>`).join("")}</div>`
-        :'<p class="empty">Diga o dia em que a fatura fecha para ver quanto vem na próxima.</p>'):""}
-      ${secao("seis", "Últimos 6 meses", `<select id="gCat" aria-label="Categoria do gráfico"><option value="">Todas</option>${S.categorias.map(c => `<option value="${esc(c.id)}" ${c.id===catGraf?"selected":""}>${esc(c.nome)}</option>`).join("")}</select> <button class="ghost" data-acao="ano">Ver o ano</button>`, `<div class="meses6" role="img" aria-label="Gasto${catGraf?" em "+esc(cat(catGraf).nome):""} em cada um dos últimos 6 meses">${seis.map(x => `<div class="${x.m===mes?"sel":""}"><span>${x.t?curto(x.t):"—"}</span><i style="height:${Math.round(x.t/max6*84)}px"></i><span>${mesData(x.m).toLocaleDateString("pt-BR",{month:"short"}).replace(".","")}</span></div>`).join("")}</div>`)}
-    </div>
-    <div class="col">
-      ${secao("dia", "Gasto por dia", "", `<div class="barras" role="img" aria-label="Gasto por dia em ${esc(mesLabel(mes))}">${barras}</div>
+        :'<p class="empty">Diga o dia em que a fatura fecha para ver quanto vem na próxima.</p>'):"",
+      seis: secao("seis", "Últimos 6 meses", `<select id="gCat" aria-label="Categoria do gráfico"><option value="">Todas</option>${S.categorias.map(c => `<option value="${esc(c.id)}" ${c.id===catGraf?"selected":""}>${esc(c.nome)}</option>`).join("")}</select> <button class="ghost" data-acao="ano">Ver o ano</button>`, `<div class="meses6" role="img" aria-label="Gasto${catGraf?" em "+esc(cat(catGraf).nome):""} em cada um dos últimos 6 meses">${seis.map(x => `<div class="${x.m===mes?"sel":""}"><span>${x.t?curto(x.t):"—"}</span><i style="height:${Math.round(x.t/max6*84)}px"></i><span>${mesData(x.m).toLocaleDateString("pt-BR",{month:"short"}).replace(".","")}</span></div>`).join("")}</div>`)
+    })}</div>
+    <div class="col">${coluna(1, {
+      dia: secao("dia", "Gasto por dia", "", `<div class="barras" role="img" aria-label="Gasto por dia em ${esc(mesLabel(mes))}">${barras}</div>
           <div class="eixo"><span>1</span><span>${Math.round(nd/2)}</span><span>${nd}</span></div>
-          <p class="need">${max>0?`Dia mais caro: ${iMax+1}, com <b class="num">${brl(max)}</b>`:"Nada lançado neste mês."}</p>`)}
-      ${secao("ult", "Últimos gastos", '<a href="#gastos">Ver todos</a>', ultimos.length?`<div class="list">${ultimos.map(g => linhaGasto(g, true)).join("")}</div>`:'<p class="empty">Nada lançado neste mês.</p>')}
-      ${secao("ent", "Entradas do mês", '<button class="ghost" data-novo="receitas">+ Entrada</button>', entradas.length?`<div class="list">${entradas.map(r => `<div class="row" ${editavel("receitas", r.id)}><div class="grow"><div class="t">${esc(r.descricao)}</div>
+          <p class="need">${max>0?`Dia mais caro: ${iMax+1}, com <b class="num">${brl(max)}</b>`:"Nada lançado neste mês."}</p>`),
+      ult: secao("ult", "Últimos gastos", '<a href="#gastos">Ver todos</a>', ultimos.length?`<div class="list">${ultimos.map(g => linhaGasto(g, true)).join("")}</div>`:'<p class="empty">Nada lançado neste mês.</p>'),
+      ent: secao("ent", "Entradas do mês", '<button class="ghost" data-novo="receitas">+ Entrada</button>', entradas.length?`<div class="list">${entradas.map(r => `<div class="row" ${editavel("receitas", r.id)}><div class="grow"><div class="t">${esc(r.descricao)}</div>
           <div class="m">${fmtData(r.data)}${r.fixa?" · todo mês":""}${r.ofx?" · ✓ extrato":""}</div></div><span class="val">${brl(num(r.valor))}</span></div>`).join("")}</div>`
-          :'<p class="empty">Salário e outras entradas. Com elas o Painel mostra quanto sobrou.</p>')}
-    </div>
-  </div>`;
+          :'<p class="empty">Salário e outras entradas. Com elas o Painel mostra quanto sobrou.</p>')
+    })}</div>
+  </div>
+  ${reordenar()}`;
 }
 
 // gastos que você repete: mesma descrição, valor e categoria pelo menos 2 vezes nos últimos 60 dias (digitados à mão)
@@ -1608,7 +1632,7 @@ function render(){
 }
 
 $("#view").addEventListener("click", e => {
-  const b = e.target.closest("[data-mes],[data-novo],[data-edit],[data-acao],[data-fav],[data-dobra]"); if (!b) return;
+  const b = e.target.closest("[data-mes],[data-novo],[data-edit],[data-acao],[data-fav],[data-dobra],[data-mover]"); if (!b) return;
   if (b.dataset.dobra){ const id = b.dataset.dobra; recolhidos = recolhidos.includes(id) ? recolhidos.filter(x => x !== id) : [...recolhidos, id];
     try { localStorage.setItem(LS_PAINEL, JSON.stringify(recolhidos)); } catch(e){} render(); return; }
   if (b.dataset.mes != null){ const n = +b.dataset.mes; mes = n ? mesMais(mes, n) : mesAtual(); render(); }
@@ -1616,6 +1640,9 @@ $("#view").addEventListener("click", e => {
   else if (b.dataset.edit==="desejos") abrirDesejo(b.dataset.id);
   else if (b.dataset.novo) abrirForm(b.dataset.novo, null, b.dataset.novo==="gastos" && filtroCat && rota()==="gastos" ? { categoriaId:filtroCat } : {});
   else if (b.dataset.edit) abrirForm(b.dataset.edit, b.dataset.id);
+  else if (b.dataset.mover) moverQuadro(b.dataset.mover, +b.dataset.dir);
+  else if (b.dataset.acao==="ordem"){ reordenando = !reordenando; render(); }
+  else if (b.dataset.acao==="ordem-padrao"){ ordem = {}; guardarOrdem(); render(); }
   else if (b.dataset.acao==="cfg") abrirConfig();
   else if (b.dataset.acao==="backup") abrirBackup();
   else if (b.dataset.acao==="pessoas") abrirPessoas();
