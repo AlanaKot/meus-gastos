@@ -215,7 +215,7 @@ const T = s => String(s || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ");
   const importar = async arq => { await q.click("#bkp"); await q.setInputFiles("#bkFile", arq); await q.waitForTimeout(700); if (await q.evaluate(() => document.querySelector("#dlg").open)) await q.click("#cancel"); };
   await importar(path.join(tmp, "bk.json"));
   const dq = await dadosQ();
-  ok("backup importado em outro aparelho traz tudo", ["categorias", "gastos", "contas", "receitas"].every(c => dq[c].length === total[c].length) && dq.config.pessoas.join() === "Ana,Bia");
+  ok("backup importado em outro aparelho traz tudo", ["categorias", "gastos", "contas", "receitas", "desejos"].every(c => dq[c].length === total[c].length) && dq.config.pessoas.join() === "Ana,Bia");
   await importar(path.join(tmp, "bk.json"));
   ok("importar duas vezes não duplica", (await dadosQ()).gastos.length === total.gastos.length);
   fs.writeFileSync(path.join(tmp, "ruim.json"), '{"app":"outro"}'); await importar(path.join(tmp, "ruim.json"));
@@ -268,16 +268,54 @@ const T = s => String(s || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ");
   ok("apagar a categoria apaga os gastos dela", (await dados()).gastos.length === antesCat - nMerc);
   await p.click("#tema"); await p.click('#ap_tema [data-v="dark"]'); await p.click('label[for="ap_cor1"]'); await p.click("#cancel");
   ok("tema escuro e cor bordô ficam guardados no aparelho", await p.evaluate(() => document.documentElement.dataset.theme === "dark" && document.documentElement.dataset.cor === "bordo" && localStorage.getItem("meus-gastos-tema") === "dark"));
+  titulo("Desejos (lista do que quero comprar)");
+  const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAHqS5hQAAAABJRU5ErkJggg==", "base64");
+  await ir("desejos");
+  ok("lista vazia convida a anotar o primeiro desejo", (await p.textContent("#view")).includes("Nada na lista"));
+  await p.click('[data-novo="desejos"]'); await p.fill("#f_nome", "Tênis de teste"); await p.fill("#f_preco", "300"); await p.fill("#f_guardado", "75,50");
+  await p.selectOption("#f_prio", "muito"); await p.setInputFiles("#dFoto", { name: "foto.png", mimeType: "image/png", buffer: PNG }); await p.waitForSelector("#dFotoBox img");
+  await p.fill("#f_link", "loja.com"); await salvarForm();
+  ok("link sem http é recusado", await aberto()); await p.fill("#f_link", "https://loja.com/tenis"); await salvarForm();
+  const w1 = (await dados()).desejos[0];
+  ok("desejo salvo com _t, preço, guardado e foto em JPEG reduzida", w1 && w1._t && w1.preco === 300 && w1.guardado === 75.5 && /^data:image\/jpeg;base64,/.test(w1.foto) && w1.criado === HOJE, JSON.stringify(w1 && { ...w1, foto: (w1.foto || "").slice(0, 30) }));
+  const cartaoW = T(await p.textContent("#view"));
+  ok("mostra foto, progresso e quanto falta", await p.isVisible("img.foto") && cartaoW.includes("Guardado R$ 76 de R$ 300") && cartaoW.includes("faltam R$ 225") && cartaoW.includes("Quero muito"), cartaoW);
+  await p.click('[data-edit="desejos"]'); await p.fill("#f_guardado", "400"); await salvarForm();
+  ok("guardado acima do preço mostra que já dá para comprar", T(await p.textContent("#view")).includes("já dá para comprar"));
+  await p.click('[data-edit="desejos"]'); await p.click("#dTira"); await salvarForm();
+  ok("tirar a foto remove do item", (await dados()).desejos[0].foto === "" && !(await p.isVisible("img.foto")));
+  await p.click('[data-edit="desejos"]'); await p.click("#del"); await p.waitForTimeout(200);
+  ok("excluir desejo anota em S.apagados e Desfazer traz de volta", (await dados()).desejos.length === 0 && Object.keys((await dados()).apagados).includes(w1.id));
+  await p.click("#toast button"); await p.waitForTimeout(200);
+  ok("desfazer devolve o desejo", (await dados()).desejos.length === 1);
+  const gastosAntes = (await dados()).gastos.length;
+  await p.click('[data-edit="desejos"]'); await p.click("#dComprei"); await p.waitForTimeout(300);
+  ok('"Comprei" abre o gasto já preenchido e arquiva o desejo', (await p.inputValue("#f_descricao")) === "Tênis de teste" && (await p.inputValue("#f_valor")) === "300,00" && (await dados()).desejos[0].estado === "comprado");
+  await salvarForm();
+  ok("o gasto do desejo comprado é criado uma vez", (await dados()).gastos.length === gastosAntes + 1);
+  ok("desejo comprado sai da lista principal e vai para Já resolvidos", T(await p.textContent("#view")).includes("Já resolvidos") && T(await p.textContent("#view")).includes("Comprei"));
+  await p.click('[data-edit="desejos"]'); await p.click("#dVolta"); await p.waitForTimeout(200);
+  ok("Voltar para a lista tira o arquivo", !(await dados()).desejos[0].estado);
+  await p.click('[data-edit="desejos"]'); await p.click("#dDesisti"); await p.waitForTimeout(200);
+  ok('"Desisti" mostra quanto economizou', T(await p.textContent("#view")).includes("Economizei R$ 300"), T(await p.textContent("#view")));
+  // foto torta vinda de um arquivo mexido à mão não pode quebrar a tela nem entrar como imagem
+  await p.evaluate(() => { const d = JSON.parse(localStorage.getItem("meus-gastos-v1")); d.desejos.push({ id:"torto", nome:"<b>x</b>", preco:"abc", foto:'javascript:alert(1)" onerror="alert(2)', criado:"", _t:1 }); localStorage.setItem("meus-gastos-v1", JSON.stringify(d)); });
+  await ir("desejos"); await p.reload(); await p.waitForSelector(".bar");
+  ok("desejo com dados tortos não quebra a tela nem vira imagem", await p.isVisible("#view .grupo") && (await p.$$eval("img.foto", e => e.every(i => i.src.startsWith("data:image/jpeg")))) && !(await p.textContent("#view")).includes("Não deu para mostrar"));
+  await p.evaluate(() => { const d = JSON.parse(localStorage.getItem("meus-gastos-v1")); d.desejos = d.desejos.filter(x => x.id !== "torto"); localStorage.setItem("meus-gastos-v1", JSON.stringify(d)); });
+  await p.reload(); await p.waitForSelector(".bar");
+
   for (const largura of [320, 390, 768]){
     const r = await novoApp({ viewport: { width: largura, height: 800 }, isMobile: largura < 700, hasTouch: largura < 700 });
     await r.evaluate(x => localStorage.setItem("meus-gastos-v1", x), JSON.stringify(await dados())); await r.reload(); await r.waitForSelector(".mesnav");
     let sobra = [];
-    for (const aba of ["painel", "gastos", "contas", "categorias"]){ await r.goto(U + "#" + aba); await r.waitForTimeout(150);
+    for (const aba of ["painel", "gastos", "contas", "categorias", "desejos"]){ await r.goto(U + "#" + aba); await r.waitForTimeout(150);
       if (await r.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)) sobra.push(aba); }
     ok(`sem rolagem lateral em ${largura}px`, !sobra.length, sobra.join(", "));
     await r.context().close(); }
 
   titulo("Modo aplicativo");
+  await ir("painel"); // a aba Desejos não tem troca de mês, e o teste abaixo espera por ela
   await p.waitForTimeout(1500);
   ok("service worker registrado e manifesto ligado", await p.evaluate(async () => !!(await navigator.serviceWorker.getRegistration()) && !!document.querySelector("link[rel=manifest]")));
   await p.context().setOffline(true); await p.reload().catch(() => {});

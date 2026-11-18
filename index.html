@@ -184,6 +184,12 @@ button.w.w:hover{background:var(--surface);filter:brightness(.97)}
 .dia-h{display:flex;justify-content:space-between;gap:12px;margin:20px 16px 7px;font-size:.8rem;text-transform:uppercase;letter-spacing:.02em;color:var(--muted);font-weight:500}
 .dia-h:first-child{margin-top:4px}
 
+.foto{width:56px;height:56px;border-radius:12px;object-fit:cover;flex:none;background:var(--fill)}
+.foto.sem{display:grid;place-items:center;color:var(--muted)}
+.foto.sem svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.foto.peq{width:40px;height:40px;border-radius:9px}
+.foto.grande{width:100%;height:auto;max-height:260px;object-fit:contain;border-radius:14px;display:block;margin-bottom:6px}
+.row.desejo{align-items:flex-start}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
 .card{background:var(--surface);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
 .card .t{font-size:1.0625rem;letter-spacing:-.02em;font-weight:600;min-width:0;overflow-wrap:anywhere}
@@ -358,6 +364,7 @@ dialog.largo{width:min(980px,calc(100vw - 32px))}
   <a href="#gastos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h12v17l-3-2-3 2-3-2-3 2z"/><path d="M9.5 8.5h5M9.5 12.5h5"/></svg>Gastos</a>
   <a href="#contas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.5 12 4l8 7.5V20h-5v-5H9v5H4z"/></svg>Contas</a>
   <a href="#categorias"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5a1.5 1.5 0 0 1 1.5-1.5h6.2l8.3 8.3a1.5 1.5 0 0 1 0 2.1l-5.6 5.6a1.5 1.5 0 0 1-2.1 0L4 11.7z"/><circle cx="8.5" cy="8.5" r="1.3"/></svg>Categorias</a>
+  <a href="#desejos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7.5-4.4-7.5-10A4.2 4.2 0 0 1 12 7.6 4.2 4.2 0 0 1 19.5 10c0 5.600-7.500 10-7.500 10z"/></svg>Desejos</a>
 </nav>
 <header>
   <div class="wrap">
@@ -376,14 +383,14 @@ dialog.largo{width:min(980px,calc(100vw - 32px))}
 <script>
 (() => {
 const CORES = ["#3b6fd8","#d9534f","#2e9e6a","#c58a12","#8a55c9","#d0679d","#1f9bb0","#6b7a8f"];
-const COLS = ["categorias","gastos","contas","receitas"];
+const COLS = ["categorias","gastos","contas","receitas","desejos"];
 const LS_KEY = "meus-gastos-v1";
 const LS_BACKUP = "meus-gastos-backup-em";
 const PAGAMENTOS = [["pix","Pix"],["debito","Débito"],["credito","Crédito"],["dinheiro","Dinheiro"],["boleto","Boleto"]];
 const FORA_DO_CLAUDE = !window.claude; // site próprio ou arquivo aberto no navegador
 
 // S guarda todos os dados. "apagados" anota o que foi apagado (código do item -> hora), para uma futura sincronização entre aparelhos.
-const S = { categorias:[], gastos:[], contas:[], receitas:[], config:{ orcamento:null }, apagados:{} };
+const S = { categorias:[], gastos:[], contas:[], receitas:[], desejos:[], config:{ orcamento:null }, apagados:{} };
 let db = null, mode = "carregando";
 
 /* ---------- utilidades ---------- */
@@ -777,6 +784,7 @@ const ICO = {
   saldo: svgI('<path d="M5 8h14M5 16h14"/><path d="m16 5 3 3-3 3M8 13l-3 3 3 3"/>'),
   feito: svgI('<path d="m5 12.5 4.5 4.5L19 7"/>'),
   alvo: svgI('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/>'),
+  presente: svgI('<path d="M4 10h16v10H4zM3 7h18v3H3zM12 7v13"/><path d="M12 7c-1.500-3-5-3-5-1s3.500 1 5 1zm0 0c1.500-3 5-3 5-1s-3.500 1-5 1z"/>'),
   media: svgI('<path d="M4 19h16M7 16v-4M12 16V7M17 16v-6"/>'),
 };
 // fora do Claude os dados vivem só neste navegador, então lembramos do backup
@@ -1568,8 +1576,8 @@ function abrirBackup(){
 }
 
 /* ---------- render e rotas ---------- */
-const TITULOS = { painel:"Painel", gastos:"Gastos", contas:"Contas da casa", categorias:"Categorias" };
-const VIEWS = { painel:vPainel, gastos:vGastos, contas:vContas, categorias:vCategorias };
+const TITULOS = { painel:"Painel", gastos:"Gastos", contas:"Contas da casa", categorias:"Categorias", desejos:"Desejos" };
+const VIEWS = { painel:vPainel, gastos:vGastos, contas:vContas, categorias:vCategorias, desejos:vDesejos };
 function rota(){ const h = location.hash.slice(1); return VIEWS[h] ? h : "painel"; }
 let renderPend = false;
 function render(){
@@ -1591,6 +1599,8 @@ $("#view").addEventListener("click", e => {
   if (b.dataset.dobra){ const id = b.dataset.dobra; recolhidos = recolhidos.includes(id) ? recolhidos.filter(x => x !== id) : [...recolhidos, id];
     try { localStorage.setItem(LS_PAINEL, JSON.stringify(recolhidos)); } catch(e){} render(); return; }
   if (b.dataset.mes != null){ const n = +b.dataset.mes; mes = n ? mesMais(mes, n) : mesAtual(); render(); }
+  else if (b.dataset.novo==="desejos") abrirDesejo();
+  else if (b.dataset.edit==="desejos") abrirDesejo(b.dataset.id);
   else if (b.dataset.novo) abrirForm(b.dataset.novo, null, b.dataset.novo==="gastos" && filtroCat && rota()==="gastos" ? { categoriaId:filtroCat } : {});
   else if (b.dataset.edit) abrirForm(b.dataset.edit, b.dataset.id);
   else if (b.dataset.acao==="cfg") abrirConfig();
@@ -1653,6 +1663,99 @@ function garantirCasa(){ if (!catCasa()) salvar("categorias", uid(), { nome:"Cas
       body.classList.remove("travada"); body.style.top = ""; scrollTo(0, posicao);
     }
   }).observe($("#dlg"), { attributes:true, attributeFilter:["open"] });
+}
+
+/* ---------- desejos: o que quero comprar (com foto) ---------- */
+// Cada desejo: nome, preco, guardado (quanto já separei), prio, link, obs, foto (texto "data:image/jpeg;base64,..."), criado (data) e,
+// quando sai da lista, estado ("comprado" ou "desisti") e fim (data). A foto é reduzida antes de guardar, para caber no navegador.
+const PRIOS = [["muito","Quero muito"],["talvez","Talvez"],["olhando","Só olhando"]];
+const rotPrio = p => (PRIOS.find(x => x[0] === p) || PRIOS[1])[1];
+const fotoOk = f => typeof f === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(f);
+const ativos = () => S.desejos.filter(d => !d.estado);
+const guardadoDe = d => Math.min(num(d.guardado) ?? 0, num(d.preco) ?? 0);
+const sobrouAgora = () => soma(S.receitas.filter(r => (r.data||"").startsWith(mesAtual()))) - soma(doMes(mesAtual()));
+// reduz a foto para no máximo 600 px de largura e a guarda como JPEG (50 a 100 KB em vez de vários MB)
+async function reduzirFoto(file){
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = erro; i.src = url; });
+    const k = Math.min(1, 600 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+    const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+    const f = c.toDataURL("image/jpeg", 0.72); return fotoOk(f) ? f : null;
+  } catch(e){ return null; } finally { URL.revokeObjectURL(url); }
+}
+function cartaoDesejo(d){
+  const preco = num(d.preco), gu = guardadoDe(d), dias = dataValida(d.criado) ? diasDesde(d.criado) : 0, falta = Math.max(0, (preco ?? 0) - gu);
+  const pode = preco != null && falta > 0 && sobrouAgora() >= falta;
+  return `<div class="row desejo" ${editavel("desejos", d.id)}>
+    ${fotoOk(d.foto) ? `<img class="foto" src="${d.foto}" alt="">` : `<span class="foto sem" aria-hidden="true">${ICO.presente}</span>`}
+    <div class="grow"><div class="t">${esc(d.nome)}</div>
+      <div class="m"><span class="chip ${d.prio==="muito"?"ok":""}">${rotPrio(d.prio)}</span> ${dias === 0 ? "adicionado hoje" : "há " + plural(dias, "dia", "dias") + " na lista"}${dias >= 30 ? " · já passou de 30 dias" : ""}</div>
+      ${preco != null ? `${meter(gu, preco)}<div class="m">Guardado <b class="num">${brl0(gu)}</b> de ${brl0(preco)}${falta ? ` · faltam <b class="num">${brl0(falta)}</b>` : " · já dá para comprar!"}</div>` : ""}
+      ${pode ? `<div class="m">O que sobrou neste mês (${brl0(sobrouAgora())}) já cobre o que falta.</div>` : ""}</div>
+    ${preco != null ? `<span class="val">${brl(preco)}</span>` : ""}</div>`;
+}
+function vDesejos(){
+  const l = ativos().sort((a,b) => PRIOS.findIndex(p => p[0] === a.prio) - PRIOS.findIndex(p => p[0] === b.prio) || (a.criado||"").localeCompare(b.criado||"")),
+    arq = S.desejos.filter(d => d.estado).sort((a,b) => (b.fim||"").localeCompare(a.fim||"")),
+    total = l.reduce((a,d) => a + (num(d.preco) ?? 0), 0), gu = l.reduce((a,d) => a + guardadoDe(d), 0),
+    eco = arq.filter(d => d.estado === "desisti").reduce((a,d) => a + (num(d.preco) ?? 0), 0);
+  return `<div class="bar"><div class="t grow need">${l.length ? `${plural(l.length,"item","itens")} · faltam <b class="num">${brl0(Math.max(0,total-gu))}</b> para tudo (${brl0(total)}, já guardado ${brl0(gu)})` : "Anote o que quer comprar e deixe esfriar: se depois de um tempo ainda quiser, vale a pena."}</div>
+    <button class="primary mais" data-novo="desejos" aria-label="Novo desejo"><span aria-hidden="true">+</span><span class="lg"> Desejo</span></button></div>
+  ${l.length ? `<div class="grupo"><div class="list">${l.map(cartaoDesejo).join("")}</div></div>` : '<div class="grupo"><p class="empty">Nada na lista. Toque no + para anotar algo que você quer comprar, com foto.</p></div>'}
+  ${arq.length ? `<div class="dia-h"><span>Já resolvidos</span><span class="num">${eco ? "Economizei " + brl0(eco) : ""}</span></div>
+    <div class="grupo"><div class="list">${arq.map(d => `<div class="row desejo" ${editavel("desejos", d.id)}>
+      ${fotoOk(d.foto) ? `<img class="foto peq" src="${d.foto}" alt="">` : ""}<div class="grow"><div class="t">${esc(d.nome)}</div>
+      <div class="m">${d.estado === "comprado" ? "Comprei" : "Desisti"}${dataValida(d.fim) ? " em " + fmtData(d.fim) : ""}</div></div>
+      ${num(d.preco) != null ? `<span class="val">${brl(num(d.preco))}</span>` : ""}</div>`).join("")}</div></div>` : ""}`;
+}
+function abrirDesejo(id){
+  const item = id ? S.desejos.find(x => x.id === id) : null; if (id && !item) return;
+  const d = item || { prio:"talvez" }; let foto = fotoOk(d.foto) ? d.foto : "";
+  const frm = $("#frm");
+  frm.innerHTML = `<h2>${id ? "Editar desejo" : "Novo desejo"}</h2>
+    <div class="field"><span class="label">Foto</span><div id="dFotoBox"></div>
+      <input type="file" id="dFoto" class="sr" accept="image/*"><label for="dFoto" class="arquivo" id="dFotoRot"></label></div>
+    <div class="field"><label for="f_nome">O que você quer?</label><input id="f_nome" name="nome" type="text" required placeholder="Ex.: Tênis, fone, jaqueta" value="${esc(d.nome || "")}"></div>
+    <div class="duo"><div class="field"><label for="f_preco">Preço (R$)</label><input id="f_preco" name="preco" inputmode="decimal" autocomplete="off" placeholder="0,00" value="${esc(paraCampo(d.preco))}"></div>
+      <div class="field"><label for="f_guardado">Já guardei (R$)</label><input id="f_guardado" name="guardado" inputmode="decimal" autocomplete="off" placeholder="0,00" value="${esc(paraCampo(d.guardado))}"></div></div>
+    <div class="field"><label for="f_prio">Quanto você quer?</label><select id="f_prio" name="prio">${PRIOS.map(([a,b]) => `<option value="${a}" ${d.prio===a?"selected":""}>${b}</option>`).join("")}</select></div>
+    <div class="field"><label for="f_link">Link da loja (opcional)</label><input id="f_link" name="link" type="url" inputmode="url" autocomplete="off" placeholder="https://..." value="${esc(d.link || "")}"></div>
+    <div class="field"><label for="f_obs">Observação (opcional)</label><input id="f_obs" name="obs" type="text" placeholder="Cor, tamanho, por que quer..." value="${esc(d.obs || "")}"></div>
+    <p class="erro" id="erro" role="alert" hidden></p>
+    <div class="actions"><div class="r iguais"><button type="button" id="cancel">Cancelar</button><button type="submit" class="primary">Salvar</button></div></div>
+    ${id ? `<div class="opcoes">${item.estado ? '<button type="button" id="dVolta">Voltar para a lista</button>' : '<button type="button" id="dComprei">Comprei: anotar como gasto</button><button type="button" id="dDesisti">Desisti de comprar</button>'}<button type="button" class="danger" id="del">Excluir</button></div>` : ""}`;
+  frm.noValidate = true;
+  const pintar = () => { $("#dFotoBox").innerHTML = foto ? `<img class="foto grande" src="${foto}" alt="Foto do item"><button type="button" class="ghost danger" id="dTira">Tirar a foto</button>` : "";
+    $("#dFotoRot").textContent = foto ? "Trocar a foto…" : "Tirar foto ou escolher da galeria…";
+    if ($("#dTira")) $("#dTira").onclick = () => { foto = ""; pintar(); }; };
+  pintar();
+  $("#dFoto").onchange = async e => { const f = e.target.files[0]; if (!f) return; const r = await reduzirFoto(f);
+    if (r) { foto = r; pintar(); } else mostrarErro("f_nome", "Não consegui ler essa foto. Tente outra."); e.target.value = ""; };
+  const montar = () => { const fd = new FormData(frm), pr = num(fd.get("preco")), gu = num(fd.get("guardado"));
+    const out = { nome:String(fd.get("nome")||"").trim(), preco:pr == null ? null : Math.round(pr*100)/100, guardado:gu == null ? null : Math.round(gu*100)/100,
+      prio:PRIOS.some(p => p[0] === fd.get("prio")) ? fd.get("prio") : "talvez", link:String(fd.get("link")||"").trim(), obs:String(fd.get("obs")||"").trim(), foto };
+    if (!out.nome) return ["f_nome", "Escreva o que você quer comprar."];
+    if (String(fd.get("preco")||"").trim() && (pr == null || pr <= 0)) return ["f_preco", "Preço: use só números, como 199,90."];
+    if (String(fd.get("guardado")||"").trim() && (gu == null || gu < 0)) return ["f_guardado", "Já guardei: use só números, como 50,00."];
+    if (out.link && !/^https?:\/\//i.test(out.link)) return ["f_link", "O link precisa começar com http:// ou https://"];
+    return out; };
+  const guardarItem = async extra => { const o = montar(); if (Array.isArray(o)){ mostrarErro(o[0], o[1]); return false; }
+    const { id:_, _t, ...resto } = item || { criado:hojeISO() };
+    return salvar("desejos", id, { ...resto, ...o, ...extra }); };
+  frm.onsubmit = async e => { e.preventDefault(); if (await guardarItem({})){ $("#dlg").close(); toast("Salvo"); } };
+  $("#cancel").onclick = () => $("#dlg").close();
+  if ($("#dDesisti")) $("#dDesisti").onclick = async () => { if (await guardarItem({ estado:"desisti", fim:hojeISO() })){ $("#dlg").close();
+    toast("Desistiu" + (num(item.preco) ? ` · economizou ${brl0(num(item.preco))}` : "")); } };
+  if ($("#dVolta")) $("#dVolta").onclick = async () => { const { id:_, _t, estado, fim, ...resto } = item; if (await salvar("desejos", id, { ...resto, criado:hojeISO() })){ $("#dlg").close(); toast("De volta à lista"); } };
+  if ($("#dComprei")) $("#dComprei").onclick = async () => {
+    if (!S.categorias.length){ toast("Crie uma categoria primeiro."); $("#dlg").close(); location.hash = "#categorias"; return; }
+    const o = montar(); if (Array.isArray(o)){ mostrarErro(o[0], o[1]); return; }
+    if (!(await guardarItem({ estado:"comprado", fim:hojeISO() }))) return;
+    $("#dlg").close(); abrirForm("gastos", null, { descricao:o.nome, valor:o.preco ?? "" }); };
+  if ($("#del")) $("#del").onclick = async () => { const { id:_, _t, ...resto } = item; await apagar("desejos", id); $("#dlg").close(); toast("Desejo apagado", "Desfazer", () => salvar("desejos", id, resto)); };
+  $("#dlg").showModal();
 }
 
 /* ---------- aparência: tema claro/escuro e cor do app ---------- */
