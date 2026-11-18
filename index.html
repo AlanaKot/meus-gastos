@@ -726,7 +726,7 @@ function gerarFixos(){
     const serie = x.serie || x.id, dia = x.dia || +x.data.slice(8), m = mesMais(x.data.slice(0,7), 1), nid = serie + "-" + m;
     S[col][i] = { ...x, proxima:true, _t:Date.now() };
     if (!S[col].some(y => y.id === nid) && !(S.apagados || {})[nid])
-      S[col].push({ id:nid, ...resto, serie, dia, data: m + "-" + String(Math.min(dia, diasNoMes(m))).padStart(2,"0"), _t:Date.now() });
+      S[col].push({ id:nid, ...resto, ...(x.variavel ? { confirmar:true } : {}), serie, dia, data: m + "-" + String(Math.min(dia, diasNoMes(m))).padStart(2,"0"), _t:Date.now() });
     mudou = true;
   }
   if (mudou){ saveLocal(); render(); }
@@ -833,6 +833,12 @@ function avisoOrcamento(){
   const txt = x => `<b>${esc(x.c.nome)}</b> ${x.total >= x.lim ? `passou do limite (${brl0(x.total)} de ${brl0(x.lim)})` : `está em ${Math.floor(x.total / x.lim * 100)}% do limite (${brl0(x.total)} de ${brl0(x.lim)})`}`;
   return `<div class="notice"><span>${l.slice(0,3).map(txt).join(". ")}${l.length > 3 ? ` e mais ${l.length - 3}` : ""}.</span><a href="#categorias">Ver</a></div>`;
 }
+// Contas e gastos fixos de valor variável (luz, água): a cópia do mês novo vem com o valor do mês passado e "confirmar:true" até você abrir e salvar (ou pagar a conta).
+const paraConfirmar = () => [...S.contas.map(x => ({ x, aba:"contas" })), ...S.gastos.map(x => ({ x, aba:"gastos" }))].filter(y => y.x.confirmar).sort((a,b) => (a.x.data||"").localeCompare(b.x.data||""));
+function avisoConfirmar(){
+  const l = paraConfirmar(); if (!l.length) return "";
+  return `<div class="notice"><span>Confirme o valor (veio do mês passado): ${l.slice(0,4).map(y => `<b>${esc(y.x.descricao)}</b>`).join(", ")}${l.length > 4 ? ` e mais ${l.length - 4}` : ""}.</span><a href="#${l[0].aba}">Ver</a></div>`;
+}
 const vCarregando = () => '<p class="empty">Carregando seus dados…</p>';
 
 // linha de cima das três abas: troca de mês e o botão de criar
@@ -843,7 +849,7 @@ function barraMes(novo, rotulo){
 }
 const editavel = (col, id) => `data-edit="${col}" data-id="${esc(id)}" role="button" tabindex="0"`;
 const linhaGasto = (g, comData) => `<div class="row" ${editavel(g.daConta ? "contas" : "gastos", g.id)}><span class="dot" style="background:${corDe(g.categoriaId)}"></span>
-  <div class="grow"><div class="t">${esc(g.descricao)}</div>
+  <div class="grow"><div class="t">${esc(g.descricao)}${g.confirmar ? ' <span class="chip warn">confirmar valor</span>' : ""}</div>
     <div class="m">${esc(nomeDe(g.categoriaId))}${comData?" · "+fmtData(g.data):""}${g.pagamento?" · "+esc(rotPag(g.pagamento)):""}${g.pagamento==="credito" && meusCartoes().length > 1?" ("+esc(meusCartoes().find(c => c.id === cartaoDe(g))?.nome || "")+")":""}${g.daConta?" · sua parte da conta":""}${g.fixa?" · todo mês":""}${g.ofx?" · ✓ extrato":""}</div></div>
   <span class="val">${brl(num(g.valor))}</span></div>`;
 const maisNovos = (a,b) => (b.data||"").localeCompare(a.data||"") || (b._t||0) - (a._t||0);
@@ -940,7 +946,7 @@ function vPainel(){
   const max6 = Math.max(...seis.map(x => Math.max(x.t, x.orc, x.meta)), 1), alt6 = v => Math.round(v / max6 * 84);
   const temMeta = seis.some(x => x.meta);
 
-  return `${avisoContas()}${avisoOrcamento()}${avisoBackup()}
+  return `${avisoContas()}${avisoConfirmar()}${avisoOrcamento()}${avisoBackup()}
   ${primeirosPassos()}
   ${barraMes("gastos","Novo gasto")}
   ${widgets}
@@ -984,7 +990,7 @@ function vGastos(){
   const lista = doMes(mes).filter(g => !filtroCat || g.categoriaId === filtroCat).sort(maisNovos);
   const grupos = []; lista.forEach(g => { const u = grupos[grupos.length-1]; if (u && u.data === g.data) u.itens.push(g); else grupos.push({data:g.data, itens:[g]}); });
   const favs = mes === mesAtual() ? favoritos() : [];
-  return `${avisoContas()}${avisoOrcamento()}${avisoBackup()}
+  return `${avisoContas()}${avisoConfirmar()}${avisoOrcamento()}${avisoBackup()}
   ${barraMes("gastos","Novo gasto")}
   ${favs.length?`<div class="favs"><span class="need">Repetir hoje:</span>${favs.map(g => `<button data-fav="${esc(g.id)}">${esc(g.descricao)} · ${brl(num(g.valor))}</button>`).join("")}</div>`:""}
   <div class="bar filtro-linha"><div class="filter"><label class="sr" for="fCat">Categoria</label><select id="fCat"><option value="">Todas as categorias</option>${S.categorias.map(c=>`<option value="${esc(c.id)}" ${c.id===filtroCat?"selected":""}>${esc(c.nome)}</option>`).join("")}</select></div>
@@ -1007,7 +1013,7 @@ function vContas(){
     <div class="w"><span class="k">${ICO.receber}Falta receber</span><span class="gr">${brl(aReceber)}</span><span class="p">${aReceber>0?"das contas deste mês":lista.length?"Tudo recebido":"Nenhuma conta"}</span></div>
   </div>`;
   const cartoes = lista.map(c => { const quem = ps.map((nome,i) => ({nome,i})).filter(x => dentro(c,x.i)), tudo = c.paga && quem.every(x => recebeu(c,x.i));
-    const chip = tudo ? ' <span class="chip ok">acertada</span>' : !c.paga && c.data < hoje ? ' <span class="chip bad">vencida</span>' : !c.paga && c.data === hoje ? ' <span class="chip warn">vence hoje</span>' : "";
+    const chip = c.confirmar ? ' <span class="chip warn">confirmar valor</span>' : tudo ? ' <span class="chip ok">acertada</span>' : !c.paga && c.data < hoje ? ' <span class="chip bad">vencida</span>' : !c.paga && c.data === hoje ? ' <span class="chip warn">vence hoje</span>' : "";
     return `<div class="grupo conta"><div class="list">
       <div class="row" ${editavel("contas", c.id)}><div class="grow"><div class="t">${esc(c.descricao)}${chip}</div>
         <div class="m">Vence ${fmtData(c.data)} · ${!quem.length?"só sua":divisao(c).fixas?"partes diferentes · a sua "+brl(minhaParte(c)):brl(minhaParte(c))+" para cada"}${c.fixa?" · todo mês":""}${c.ofx?" · ✓ extrato":""}</div></div><span class="val">${brl(num(c.valor))}</span></div>
@@ -1016,7 +1022,7 @@ function vContas(){
     </div></div>`; }).join("");
   // o que cada pessoa ainda deve, somando todos os meses (para uma dívida antiga não sumir ao trocar de mês)
   const deve = ps.map((nome,i) => { const pend = devendo(i); return { nome, i, qtd:pend.length, total:pend.reduce((a,c) => a + parteDe(c,i), 0) }; });
-  return `${avisoBackup()}
+  return `${avisoConfirmar()}${avisoBackup()}
   ${barraMes("contas","Nova conta")}
   ${widgets}
   <div class="grid2">
@@ -1039,14 +1045,16 @@ async function receberTudo(i){
 }
 // monta a mensagem de cobrança e abre o compartilhar do celular (ou copia, no computador)
 async function cobrar(i){
-  const nome = pessoas()[i], pend = devendo(i); if (!pend.length) return;
+  const nome = pessoas()[i], todas = devendo(i), pend = todas.filter(c => !c.confirmar); // conta de valor não confirmado não entra na cobrança
+  if (!pend.length){ if (todas.length) toast("Confirme o valor da conta antes de cobrar."); return; }
+  const fora = todas.length - pend.length;
   const d = s => dataValida(s) ? s.slice(8) + "/" + s.slice(5,7) : "";
   const txt = `Oi, ${nome}! ${pend.length === 1 ? "Sua parte da conta da casa" : "Suas partes das contas da casa"}:\n`
     + pend.map(c => `• ${c.descricao} (vence ${d(c.data)}): ${brl(parteDe(c,i))}`).join("\n")
     + (pend.length > 1 ? `\nTotal: ${brl(pend.reduce((a,c) => a + parteDe(c,i), 0))}` : "")
     + (S.config.pix ? `\nPix: ${S.config.pix}` : "");
   if (navigator.share && matchMedia("(pointer:coarse)").matches){ try { await navigator.share({ text: txt }); } catch(e){} return; }
-  try { await navigator.clipboard.writeText(txt); toast("Mensagem copiada. Cole no WhatsApp."); }
+  try { await navigator.clipboard.writeText(txt); toast("Mensagem copiada. Cole no WhatsApp." + (fora ? ` (${plural(fora,"conta ficou","contas ficaram")} de fora: valor a confirmar)` : "")); }
   catch(e){ // sem acesso à área de transferência: mostra o texto para copiar à mão
     const frm = $("#frm");
     frm.innerHTML = `<h2>Mensagem para ${esc(nome)}</h2><div class="field"><label for="c_msg">Copie o texto</label><textarea id="c_msg" readonly>${esc(txt)}</textarea></div>
@@ -1078,6 +1086,7 @@ function vCategorias(){
 /* ---------- formulários ---------- */
 const optCats = () => [["","Sem categoria"], ...S.categorias.map(c => [c.id, c.nome])];
 const FIXA = {k:"fixa",l:"Repetir todo mês",t:"check",hint:"O app cria a cópia sozinho quando o mês vira. Para parar, desligue na mais recente."};
+const VARIA = {k:"variavel",l:"O valor muda todo mês (luz, água)",t:"check",hint:"A cópia do mês novo vem marcada para você confirmar o valor antes de pagar ou cobrar."};
 const FORMS = {
   categorias: { titulo:"Nova categoria", editar:"Editar categoria", campos:[
     {k:"nome",l:"Nome",t:"text",req:1,ph:"Ex.: Mercado"},
@@ -1089,13 +1098,13 @@ const FORMS = {
   contas: { titulo:"Nova conta", editar:"Editar conta", apagado:"Conta apagada", campos:[
     {k:"descricao",l:"Conta",t:"text",req:1,ph:"Ex.: Luz, Internet, Aluguel"},
     {duo:[{k:"valor",l:"Valor total (R$)",t:"num",ph:"0,00"},{k:"data",l:"Vencimento",t:"date",def:hojeISO}]},
-    {k:"fora",l:"Quem divide esta conta",t:"pessoas"}, FIXA ]},
+    {k:"fora",l:"Quem divide esta conta",t:"pessoas"}, FIXA, VARIA ]},
   gastos: { titulo:"Novo gasto", editar:"Editar gasto", apagado:"Gasto apagado", campos:[
     {k:"descricao",l:"Descrição",t:"text",req:1,ph:"Ex.: Almoço, Uber, Netflix"},
     {duo:[{k:"valor",l:"Valor (R$)",t:"num",ph:"0,00"},{k:"data",l:"Data",t:"date",def:hojeISO}]},
     {duo:[{k:"categoriaId",l:"Categoria",t:"select",opts:optCats},{k:"pagamento",l:"Pagamento",t:"select",opts:PAGAMENTOS,def:"pix"}]},
     {k:"cartaoId",l:"Cartão",t:"select",opts:() => meusCartoes().map(c => [c.id, c.nome]),soCartoes:1},
-    {k:"parcelas",l:"Parcelas",t:"int",def:1,soNovo:1,hint:"Em mais de 1 vez, o valor é dividido e cada parcela cai num mês."}, FIXA ]},
+    {k:"parcelas",l:"Parcelas",t:"int",def:1,soNovo:1,hint:"Em mais de 1 vez, o valor é dividido e cada parcela cai num mês."}, FIXA, VARIA ]},
 };
 
 function campoHTML(c, v, dados){
@@ -1163,6 +1172,7 @@ function abrirForm(col, id, preset={}){
     if (erro){ mostrarErro("f_"+erro[0], erro[1]); return; }
     // mantém os campos que o formulário não mostra
     const { id:_, _t, ...resto } = item || {};
+    delete resto.confirmar; // salvar pelo formulário confirma o valor
     const n = out.parcelas || 1; delete out.parcelas;
     let ok;
     if (n > 1){ // compra parcelada: um gasto por mês; os centavos que sobram da divisão ficam na primeira parcela
@@ -1692,7 +1702,7 @@ $("#view").addEventListener("change", e => {
   else if (t.dataset.chk){ // chaves da aba Contas: "Paguei a conta" e "Fulana me pagou"
     const c = S.contas.find(x => x.id === t.dataset.id); if (!c) return;
     const { id, _t, ...resto } = c;
-    if (t.dataset.chk === "paga"){ resto.paga = t.checked; if (t.checked){ resto.pagaEm = hojeISO(); garantirCasa(); } else delete resto.pagaEm; }
+    if (t.dataset.chk === "paga"){ resto.paga = t.checked; if (t.checked){ resto.pagaEm = hojeISO(); delete resto.confirmar; garantirCasa(); } else delete resto.pagaEm; }
     else { const rec = pessoas().map((_,i) => recebeu(c,i)); rec[+t.dataset.chk] = t.checked; resto.recebido = rec; }
     salvar("contas", id, resto);
   }

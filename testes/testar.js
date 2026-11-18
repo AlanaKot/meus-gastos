@@ -341,6 +341,29 @@ const T = s => String(s || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ");
     await r.context().close();
   }
 
+  titulo("Contas fixas de valor variável (luz, água)");
+  {
+    const r = await novoApp(), m2 = mesMais(-2), m1 = mesMais(-1), m0 = mesMais(0);
+    const luz = { id: "luz", descricao: "Luz", valor: 100, data: m2 + "-10", fixa: true, variavel: true, paga: true, pagaEm: m2 + "-10", recebido: [true, true], fora: [], _t: 1 };
+    const net = { id: "net", descricao: "Internet", valor: 80, data: m2 + "-12", fixa: true, paga: true, pagaEm: m2 + "-12", recebido: [true, true], fora: [], _t: 1 };
+    await r.evaluate(x => localStorage.setItem("meus-gastos-v1", x), JSON.stringify({ app: "meus-gastos", categorias: [{ id: "c1", nome: "Casa", cor: "#1f9bb0", _t: 1 }], gastos: [], contas: [luz, net], receitas: [], desejos: [], apagados: {}, config: { pessoas: ["Ana", "Bia"] } }));
+    await r.goto(U + "#painel"); await r.reload(); await r.waitForSelector(".wg");
+    const dr = () => r.evaluate(() => JSON.parse(localStorage.getItem("meus-gastos-v1")));
+    const c1 = await dr();
+    ok("só a conta marcada como variável gera cópias com confirmar", c1.contas.filter(c => c.id.startsWith("luz-") && c.confirmar).length === 2 && c1.contas.filter(c => c.id.startsWith("net-")).length === 2 && !c1.contas.some(c => c.id.startsWith("net-") && c.confirmar), JSON.stringify(c1.contas.map(c => [c.id, !!c.confirmar])));
+    ok("a cópia traz o valor do mês passado", c1.contas.find(c => c.id === "luz-" + m0).valor === 100);
+    ok("aviso no Painel pede para confirmar o valor da Luz", T(await r.$$eval(".notice", e => e.map(x => x.innerText).join(" | "))).includes("Confirme o valor (veio do mês passado): Luz"));
+    await r.goto(U + "#contas"); await r.waitForTimeout(250);
+    ok("a conta do mês mostra o selo confirmar valor", (await r.$$(".chip.warn")).length >= 1 && T(await r.textContent("#view")).includes("confirmar valor"));
+    await r.click('[data-id="luz-' + m0 + '"][data-edit="contas"]'); await r.fill("#f_valor", "135,40"); await r.click("#frm button[type=submit]"); await r.waitForTimeout(250);
+    const luz0 = (await dr()).contas.find(c => c.id === "luz-" + m0);
+    ok("salvar com o valor novo tira a marca e mantém a série variável", luz0.valor === 135.4 && !luz0.confirmar && luz0.variavel === true, JSON.stringify(luz0));
+    await r.click('[data-acao="cobrar"][data-i="0"]'); await r.waitForTimeout(300);
+    const msg = await r.evaluate(() => navigator.clipboard.readText());
+    ok("a cobrança deixa de fora a conta ainda sem valor confirmado", /Luz/.test(msg) && /45,13/.test(msg.replace(/ /g, " ")) && (msg.match(/Luz/g) || []).length === 1 && (await r.textContent("#toast")).includes("1 conta ficou de fora"), msg + " | " + await r.textContent("#toast"));
+    await r.context().close();
+  }
+
   titulo("Alerta de orçamento por categoria");
   {
     const r = await novoApp(), m0 = mesMais(0);
